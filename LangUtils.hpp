@@ -18,6 +18,16 @@ namespace own {
 
 //----------------------------------------------------------------------------------------------------------------------
 
+// std::size is C++17, and since we want to support C++11 we have to make our own
+template< typename Container >
+constexpr size_t size( const Container & cont )
+{
+	return std::end(cont) - std::begin(cont);
+}
+
+
+//----------------------------------------------------------------------------------------------------------------------
+
 template< typename EndFunc >
 class scope_guard
 {
