@@ -12,11 +12,15 @@
 
 #include "Essential.hpp"
 
+#include <iterator>
+#include <type_traits>
+
 
 namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
+//  container helpers
 
 // std::size is C++17, and since we want to support C++11 we have to make our own
 template< typename Container >
@@ -27,6 +31,57 @@ constexpr size_t size( const Container & cont )
 
 
 //----------------------------------------------------------------------------------------------------------------------
+//  span - a generalization over continuous-memory containers
+
+template< typename ElemType >
+class span
+{
+	ElemType * _begin;
+	ElemType * _end;
+
+ public:
+
+	span() : _begin( nullptr ), _end( nullptr ) {}
+	template< typename OtherType >
+	span( OtherType * begin, OtherType * end ) : _begin( begin ), _end( end ) {}
+	template< typename OtherType >
+	span( OtherType * data, size_t size ) : _begin( data ), _end( data + size ) {}
+	template< typename OtherType >
+	span( span< OtherType > other ) : _begin( other.begin() ), _end( other.end() ) {}
+
+	ElemType * begin() const { return _begin; }
+	ElemType * end() const { return _end; }
+	ElemType * data() const { return _begin; }
+	size_t size() const { return _end - _begin; }
+
+	template< typename OtherType >
+	span< OtherType > cast() const { return { reinterpret_cast<OtherType *>(_begin), reinterpret_cast<OtherType *>(_end) }; }
+};
+
+template< typename Container >
+auto make_span( Container & cont ) -> span< typename std::remove_reference< decltype( *cont.data() ) >::type >
+{
+	return { cont.data(), cont.data() + cont.size() };
+}
+template< typename Container >
+auto make_span( const Container & cont ) -> span< typename std::remove_reference< decltype( *cont.data() ) >::type >
+{
+	return { cont.data(), cont.data() + cont.size() };
+}
+template< typename ElemType, size_t size >
+auto make_span( ElemType (& arr) [size] ) -> span< ElemType >
+{
+	return { &*std::begin(arr), &*std::end(arr) };
+}
+template< typename ElemType, size_t size >
+auto make_span( const ElemType (& arr) [size] ) -> span< const ElemType >
+{
+	return { &*std::begin(arr), &*std::end(arr) };
+}
+
+
+//----------------------------------------------------------------------------------------------------------------------
+//  scope guards
 
 template< typename EndFunc >
 class scope_guard
@@ -45,6 +100,7 @@ scope_guard< EndFunc > at_scope_end_do( const EndFunc & endFunc )
 
 
 //----------------------------------------------------------------------------------------------------------------------
+//  type traits helpers
 
 /// this determines types that are convertible to integer and serializable to network stream
 template< typename Type >
