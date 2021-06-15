@@ -49,13 +49,19 @@ class span
 	template< typename OtherType >
 	span( span< OtherType > other ) : _begin( other.begin() ), _end( other.end() ) {}
 
+	template< typename OtherType >
+	span< ElemType > & operator=( span< OtherType > other ) { _begin = other.begin(); _end = other.end(); return *this; }
+
 	ElemType * begin() const { return _begin; }
 	ElemType * end() const { return _end; }
 	ElemType * data() const { return _begin; }
 	size_t size() const { return _end - _begin; }
 
 	template< typename OtherType >
-	span< OtherType > cast() const { return { reinterpret_cast<OtherType *>(_begin), reinterpret_cast<OtherType *>(_end) }; }
+	span< OtherType > cast() const
+	{
+		return { reinterpret_cast< OtherType * >( _begin ), reinterpret_cast< OtherType * >( _end ) };
+	}
 };
 
 template< typename Container >
