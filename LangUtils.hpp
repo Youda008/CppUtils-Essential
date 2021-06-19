@@ -29,6 +29,13 @@ constexpr size_t size( const Container & cont )
 	return std::end(cont) - std::begin(cont);
 }
 
+template< typename Iterator, typename Distance >
+Iterator advance( Iterator it, Distance n )
+{
+	std::advance( it, n );
+	return it;
+}
+
 
 //----------------------------------------------------------------------------------------------------------------------
 //  span - a generalization over continuous-memory containers
@@ -56,6 +63,7 @@ class span
 	ElemType * end() const { return _end; }
 	ElemType * data() const { return _begin; }
 	size_t size() const { return _end - _begin; }
+	bool empty() const { return _begin == _end; }
 
 	template< typename OtherType >
 	span< OtherType > cast() const
@@ -129,6 +137,23 @@ typename std::underlying_type< EnumType >::type enumToInt( EnumType num )
 {
 	return static_cast< typename std::underlying_type< EnumType >::type >( num );
 }
+
+
+//----------------------------------------------------------------------------------------------------------------------
+//  compiler-dependent
+
+/// Compiler dependent way to silence unused variable warnings in C++11.
+/** This library is limited to C++11, so the standardized [[maybe_unused]] is not usable. This will silence the warnings
+  * in gcc and clang. Users of other compilers will have to deal with occasional warnings or disable them completely
+  * with command line argument. */
+#define MAYBE_UNUSED
+
+#undef MAYBE_UNUSED
+#ifdef __GNUC__
+	#define MAYBE_UNUSED __attribute__((unused))
+#else
+	#define MAYBE_UNUSED
+#endif
 
 
 //----------------------------------------------------------------------------------------------------------------------
