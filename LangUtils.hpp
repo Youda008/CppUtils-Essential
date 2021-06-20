@@ -2,7 +2,7 @@
 // Project: CppUtils
 //----------------------------------------------------------------------------------------------------------------------
 // Author:      Jan Broz (Youda008)
-// Description: language-specific utils
+// Description: template helpers, container helpers and backports from newer C++ standards
 //======================================================================================================================
 
 #ifndef CPPUTILS_LANGUAGE_INCLUDED
@@ -11,22 +11,27 @@
 
 #include "Essential.hpp"
 
-#include <iterator>
-#include <type_traits>
+#include "Span.hpp"
+
+#include <iterator>  // advance, begin, end
 
 
 namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  container helpers
+//  things backported from C++ standards newer than C++11
 
-// std::size is C++17, and since we want to support C++11 we have to make our own
-template< typename Container >
-constexpr size_t size( const Container & cont )
+// C++14
+template< typename Iter >
+constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i )
 {
-	return std::end(cont) - std::begin(cont);
+    return std::reverse_iterator<Iter>(i);
 }
+
+
+//----------------------------------------------------------------------------------------------------------------------
+//  container helpers
 
 template< typename Iterator, typename Distance >
 Iterator advance( Iterator it, Distance n )
@@ -34,42 +39,6 @@ Iterator advance( Iterator it, Distance n )
 	std::advance( it, n );
 	return it;
 }
-
-
-//----------------------------------------------------------------------------------------------------------------------
-//  span - a generalization over continuous-memory containers
-
-template< typename ElemType >
-class span
-{
-	ElemType * _begin;
-	ElemType * _end;
-
- public:
-
-	span() : _begin( nullptr ), _end( nullptr ) {}
-	template< typename OtherType >
-	span( OtherType * begin, OtherType * end ) : _begin( begin ), _end( end ) {}
-	template< typename OtherType >
-	span( OtherType * data, size_t size ) : _begin( data ), _end( data + size ) {}
-	template< typename OtherType >
-	span( span< OtherType > other ) : _begin( other.begin() ), _end( other.end() ) {}
-
-	template< typename OtherType >
-	span< ElemType > & operator=( span< OtherType > other ) { _begin = other.begin(); _end = other.end(); return *this; }
-
-	ElemType * begin() const { return _begin; }
-	ElemType * end() const { return _end; }
-	ElemType * data() const { return _begin; }
-	size_t size() const { return _end - _begin; }
-	bool empty() const { return _begin == _end; }
-
-	template< typename OtherType >
-	span< OtherType > cast() const
-	{
-		return { reinterpret_cast< OtherType * >( _begin ), reinterpret_cast< OtherType * >( _end ) };
-	}
-};
 
 template< typename Container >
 auto make_span( Container & cont ) -> span< typename std::remove_reference< decltype( *cont.data() ) >::type >
@@ -90,6 +59,11 @@ template< typename ElemType, size_t size >
 auto make_span( const ElemType (& arr) [size] ) -> span< const ElemType >
 {
 	return { &*std::begin(arr), &*std::end(arr) };
+}
+template< size_t size >
+auto make_span( const char (& arr) [size] ) -> span< const char >
+{
+	return { reinterpret_cast< const char * >( arr ), reinterpret_cast< const char * >( arr ) + size };
 }
 
 
@@ -136,23 +110,6 @@ typename std::underlying_type< EnumType >::type enumToInt( EnumType num )
 {
 	return static_cast< typename std::underlying_type< EnumType >::type >( num );
 }
-
-
-//----------------------------------------------------------------------------------------------------------------------
-//  compiler-dependent
-
-/// Compiler dependent way to silence unused variable warnings in C++11.
-/** This library is limited to C++11, so the standardized [[maybe_unused]] is not usable. This will silence the warnings
-  * in gcc and clang. Users of other compilers will have to deal with occasional warnings or disable them completely
-  * with command line argument. */
-#define MAYBE_UNUSED
-
-#undef MAYBE_UNUSED
-#ifdef __GNUC__
-	#define MAYBE_UNUSED __attribute__((unused))
-#else
-	#define MAYBE_UNUSED
-#endif
 
 
 //----------------------------------------------------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 // Project: CppUtils
 //----------------------------------------------------------------------------------------------------------------------
 // Author:      Jan Broz (Youda008)
-// Description: language-specific utils
+// Description: template helpers, container helpers and backports from newer C++ standards
 //======================================================================================================================
 
 #include "LangUtils.hpp"
