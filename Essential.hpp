@@ -23,18 +23,6 @@ using ullong = unsigned long long;
 using std::move;
 
 
-namespace own {
-
-// C++17
-template< typename Container >
-constexpr size_t size( const Container & cont )
-{
-	return std::end(cont) - std::begin(cont);
-}
-
-} // namespace own
-
-
 // Compiler dependent way to silence unused variable warnings in C++11.
 /* If the project is limited to C++11 this is to be used instead of [[maybe_unused]]. This works in gcc and clang.
  * Users of other compilers will have to deal with occasional warnings or disable them with command line argument. */

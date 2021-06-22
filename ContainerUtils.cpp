@@ -2,10 +2,10 @@
 // Project: CppUtils
 //----------------------------------------------------------------------------------------------------------------------
 // Author:      Jan Broz (Youda008)
-// Description: template helpers, generic container helpers and backports from newer C++ standards
+// Description: helpers that require declarations of STL containers
 //======================================================================================================================
 
-#include "LangUtils.hpp"
+#include "ContainerUtils.hpp"
 
 
 namespace own {

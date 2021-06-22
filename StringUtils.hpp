@@ -11,6 +11,8 @@
 
 #include "Essential.hpp"
 
+#include "Span.hpp"
+
 #include <string>
 #include <sstream>
 #include <stdexcept>
@@ -60,6 +62,16 @@ std::string to_lower( const std::string & str );
 void to_lower_in_place( std::string & str );
 
 bool starts_with( const std::string & str, const std::string & prefix );
+
+byte_span make_byte_span( std::string & str )
+{
+	return { reinterpret_cast< uint8_t * >( const_cast< char * >( str.data() ) ), str.size() };
+}
+
+const_byte_span make_byte_span( const std::string & str )
+{
+	return { reinterpret_cast< const uint8_t * >( str.data() ), str.size() };
+}
 
 
 //----------------------------------------------------------------------------------------------------------------------

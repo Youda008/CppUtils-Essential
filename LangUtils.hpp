@@ -2,7 +2,7 @@
 // Project: CppUtils
 //----------------------------------------------------------------------------------------------------------------------
 // Author:      Jan Broz (Youda008)
-// Description: template helpers, container helpers and backports from newer C++ standards
+// Description: template helpers, generic container helpers and backports from newer C++ standards
 //======================================================================================================================
 
 #ifndef CPPUTILS_LANGUAGE_INCLUDED
@@ -22,6 +22,13 @@ namespace own {
 //----------------------------------------------------------------------------------------------------------------------
 //  things backported from C++ standards newer than C++11
 
+// C++17
+template< typename Container >
+constexpr size_t size( const Container & cont )
+{
+	return std::end(cont) - std::begin(cont);
+}
+
 // C++14
 template< typename Iter >
 constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i )
@@ -33,6 +40,7 @@ constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i )
 //----------------------------------------------------------------------------------------------------------------------
 //  container helpers
 
+/// return value variant of std::advance
 template< typename Iterator, typename Distance >
 Iterator advance( Iterator it, Distance n )
 {
@@ -40,30 +48,19 @@ Iterator advance( Iterator it, Distance n )
 	return it;
 }
 
-template< typename Container >
-auto make_span( Container & cont ) -> span< typename std::remove_reference< decltype( *cont.data() ) >::type >
+
+//----------------------------------------------------------------------------------------------------------------------
+//  own::span helpers
+
+template< typename ContType >
+auto make_span( ContType & cont ) -> span< typename std::remove_reference< decltype( *std::begin(cont) ) >::type >
 {
-	return { cont.data(), cont.data() + cont.size() };
+	return { &*std::begin(cont), &*std::end(cont) };
 }
-template< typename Container >
-auto make_span( const Container & cont ) -> span< typename std::remove_reference< decltype( *cont.data() ) >::type >
+template< typename ContType >
+auto make_span( const ContType & cont ) -> span< typename std::remove_reference< decltype( *std::begin(cont) ) >::type >
 {
-	return { cont.data(), cont.data() + cont.size() };
-}
-template< typename ElemType, size_t size >
-auto make_span( ElemType (& arr) [size] ) -> span< ElemType >
-{
-	return { &*std::begin(arr), &*std::end(arr) };
-}
-template< typename ElemType, size_t size >
-auto make_span( const ElemType (& arr) [size] ) -> span< const ElemType >
-{
-	return { &*std::begin(arr), &*std::end(arr) };
-}
-template< size_t size >
-auto make_span( const char (& arr) [size] ) -> span< const char >
-{
-	return { reinterpret_cast< const char * >( arr ), reinterpret_cast< const char * >( arr ) + size };
+	return { &*std::begin(cont), &*std::end(cont) };
 }
 
 
