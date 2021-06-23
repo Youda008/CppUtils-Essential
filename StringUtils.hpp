@@ -39,7 +39,7 @@ bool from_string( const std::string & src, DestType & dest )
 {
 	std::istringstream is( src );
 	is >> dest;
-	return !is.fail();
+	return is.eof() || !is.fail();
 }
 
 template< typename DestType >
