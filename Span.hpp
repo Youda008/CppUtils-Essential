@@ -34,11 +34,12 @@ class span
 
 	// the templates for other type are required to allow constructing  span< const char > from span< char >
 
-	// construct manually from pair of pointers or data and size
+	// construct manually from pair of pointers
 	template< typename OtherType,
 		typename std::enable_if<std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	span( OtherType * begin, ElemType * end ) : _begin( begin ), _end( end ) {}
 
+	// construct manually from a data pointer and size
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	span( OtherType * data, size_t size ) : _begin( data ), _end( data + size ) {}
@@ -48,10 +49,12 @@ class span
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	span( OtherType (& arr) [Size] ) : thisSpan( arr, Size ) {}
 
+	// copy
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	span( const span< OtherType > & other ) : thisSpan( other.begin(), other.end() ) {}
 
+	// assign
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	span< ElemType > & operator=( const span< OtherType > & other )
@@ -89,10 +92,12 @@ class fixed_span
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	fixed_span( OtherType * data ) : _begin( data ) {}
 
+	// copy
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	fixed_span( const fixed_span< OtherType, Size > & other ) : _begin( other.begin() ) {}
 
+	// assign
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
 	fixed_span< ElemType, Size > & operator=( fixed_span< OtherType, Size > other )
@@ -129,6 +134,9 @@ class byte_span : public span< uint8_t >
 	// allow using chars where bytes are expected
 	byte_span( const span< char > & other )
 		: baseSpan( reinterpret_cast< uint8_t * >( other.data() ), other.size() ) {}
+	template< size_t Size >
+	byte_span( char (& arr) [Size] )
+		: baseSpan( reinterpret_cast< uint8_t * >( arr ), Size ) {}
 };
 
 class const_byte_span : public span< const uint8_t >
@@ -143,10 +151,17 @@ class const_byte_span : public span< const uint8_t >
 	const_byte_span & operator=( const baseSpan & other ) { baseSpan::operator=( other ); return *this; }
 
 	// allow using chars where bytes are expected
-	const_byte_span( span< const char > other )
+	// TODO: simpler
+	const_byte_span( const span< const char > & other )
 		: baseSpan( reinterpret_cast< const uint8_t * >( other.data() ), other.size() ) {}
-	const_byte_span( span< char > other )
+	const_byte_span( const span< char > & other )
 		: baseSpan( reinterpret_cast< uint8_t * >( other.data() ), other.size() ) {}
+	template< size_t Size >
+	const_byte_span( const char (& arr) [Size] )
+		: baseSpan( reinterpret_cast< const uint8_t * >( arr ), Size ) {}
+	template< size_t Size >
+	const_byte_span( char (& arr) [Size] )
+		: baseSpan( reinterpret_cast< uint8_t * >( arr ), Size ) {}
 };
 
 class char_span : public span< char >
@@ -163,6 +178,9 @@ class char_span : public span< char >
 	// allow using bytes where chars are expected
 	char_span( const span< uint8_t > & other )
 		: baseSpan( reinterpret_cast< char * >( other.data() ), other.size() ) {}
+	template< size_t Size >
+	char_span( const uint8_t (& arr) [Size] )
+		: baseSpan( reinterpret_cast< char * >( arr ), Size ) {}
 };
 
 class const_char_span : public span< const char >
@@ -177,10 +195,17 @@ class const_char_span : public span< const char >
 	const_char_span & operator=( const baseSpan & other ) { baseSpan::operator=( other ); return *this; }
 
 	// allow using bytes where chars are expected
+	// TODO: simpler
 	const_char_span( const span< const uint8_t > & other )
 		: baseSpan( reinterpret_cast< const char * >( other.data() ), other.size() ) {}
 	const_char_span( const span< uint8_t > & other )
 		: baseSpan( reinterpret_cast< char * >( other.data() ), other.size() ) {}
+	template< size_t Size >
+	const_char_span( const uint8_t (& arr) [Size] )
+		: baseSpan( reinterpret_cast< const char * >( arr ), Size ) {}
+	template< size_t Size >
+	const_char_span( uint8_t (& arr) [Size] )
+		: baseSpan( reinterpret_cast< char * >( arr ), Size ) {}
 };
 
 template< size_t Size >
