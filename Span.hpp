@@ -10,6 +10,7 @@
 
 
 #include <cstdint>
+#include <type_traits>
 
 
 namespace own {
@@ -29,16 +30,29 @@ class span
 
 	span() : _begin( nullptr ), _end( nullptr ) {}
 
+	// the templates for other type are required to allow constructing  span< const char > from span< char >
+
 	// construct manually from pair of pointers or data and size
-	span( ElemType * begin, ElemType * end ) : _begin( begin ), _end( end ) {}
-	span( ElemType * data, size_t size ) : _begin( data ), _end( data + size ) {}
+	template< typename OtherType,
+		typename std::enable_if<std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	span( OtherType * begin, ElemType * end ) : _begin( begin ), _end( end ) {}
+
+	template< typename OtherType,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	span( OtherType * data, size_t size ) : _begin( data ), _end( data + size ) {}
 
 	// deduce from static C array
-	template< size_t Size >
-	span( ElemType (& arr) [Size] ) : _begin( arr ), _end( arr + Size ) {}
+	template< typename OtherType, size_t Size,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	span( OtherType (& arr) [Size] ) : _begin( arr ), _end( arr + Size ) {}
 
-	span( const span< ElemType > & other ) : _begin( other.begin() ), _end( other.end() ) {}
-	span< ElemType > & operator=( const span< ElemType > & other ) { _begin = other.begin(); _end = other.end(); return *this; }
+	template< typename OtherType,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	span( const span< OtherType > & other ) : _begin( other.begin() ), _end( other.end() ) {}
+
+	template< typename OtherType,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	span< ElemType > & operator=( const span< OtherType > & other ) { _begin = other.begin(); _end = other.end(); return *this; }
 
 	ElemType * begin() const { return _begin; }
 	ElemType * end() const { return _end; }
@@ -68,10 +82,17 @@ class fixed_span
 	fixed_span() : _begin( nullptr ) {}
 
 	// construct manually from a data pointer and template size
-	fixed_span( ElemType * data ) : _begin( data ) {}
+	template< typename OtherType,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	fixed_span( OtherType * data ) : _begin( data ) {}
 
-	fixed_span( const fixed_span< ElemType, Size > & other ) : _begin( other.begin() ) {}
-	fixed_span< ElemType, Size > & operator=( fixed_span< ElemType, Size > other ) { _begin = other.begin(); return *this; }
+	template< typename OtherType,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	fixed_span( const fixed_span< OtherType, Size > & other ) : _begin( other.begin() ) {}
+
+	template< typename OtherType,
+		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
+	fixed_span< ElemType, Size > & operator=( fixed_span< OtherType, Size > other ) { _begin = other.begin(); return *this; }
 
 	ElemType * begin() const { return _begin; }
 	ElemType * end() const { return _begin + Size; }
@@ -120,6 +141,8 @@ class const_byte_span : public span< const uint8_t >
 	// allow using chars where bytes are expected
 	const_byte_span( const span< const char > & other )
 		: baseSpan( reinterpret_cast< const uint8_t * >( other.data() ), other.size() ) {}
+	const_byte_span( const span< char > & other )
+		: baseSpan( reinterpret_cast< uint8_t * >( other.data() ), other.size() ) {}
 };
 
 class char_span : public span< char >
@@ -152,6 +175,8 @@ class const_char_span : public span< const char >
 	// allow using bytes where chars are expected
 	const_char_span( const span< const uint8_t > & other )
 		: baseSpan( reinterpret_cast< const char * >( other.data() ), other.size() ) {}
+	const_char_span( const span< uint8_t > & other )
+		: baseSpan( reinterpret_cast< char * >( other.data() ), other.size() ) {}
 };
 
 template< size_t Size >
