@@ -24,17 +24,43 @@ namespace own {
 //----------------------------------------------------------------------------------------------------------------------
 //  own::span helpers
 
-template< typename ElemType, size_t Size >
-auto make_fixex_span( std::array< ElemType, Size > & arr )
- -> fixed_span< typename std::remove_reference< decltype( arr[0] ) >::type, Size >
+template< typename ElemType >
+auto make_span( std::vector< ElemType > & cont )
+ -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
 {
-	return { arr };
+	return { cont.data(), cont.size() };
+}
+template< typename ElemType >
+auto make_span( const std::vector< ElemType > & cont )
+ -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
+{
+	return { cont.data(), cont.size() };
+}
+
+template< typename ElemType, size_t Size >
+auto make_span( std::array< ElemType, Size > & cont )
+ -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
+{
+	return { cont.data(), cont.size() };
 }
 template< typename ElemType, size_t Size >
-auto make_fixex_span( const std::array< ElemType, Size > & arr )
- -> fixed_span< const typename std::remove_reference< decltype( arr[0] ) >::type, Size >
+auto make_span( const std::array< ElemType, Size > & cont )
+ -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
 {
-	return { arr };
+	return { cont.data(), cont.size() };
+}
+
+template< typename ElemType, size_t Size >
+auto make_fixex_span( std::array< ElemType, Size > & cont )
+ -> fixed_span< typename std::remove_reference< decltype( cont[0] ) >::type, Size >
+{
+	return { cont.data() };
+}
+template< typename ElemType, size_t Size >
+auto make_fixex_span( const std::array< ElemType, Size > & cont )
+ -> fixed_span< const typename std::remove_reference< decltype( cont[0] ) >::type, Size >
+{
+	return { cont.data() };
 }
 
 

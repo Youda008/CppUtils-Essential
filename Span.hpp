@@ -26,6 +26,8 @@ class span
 	ElemType * _begin;
 	ElemType * _end;
 
+	using thisSpan = span< ElemType >;
+
  public:
 
 	span() : _begin( nullptr ), _end( nullptr ) {}
@@ -44,15 +46,16 @@ class span
 	// deduce from static C array
 	template< typename OtherType, size_t Size,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( OtherType (& arr) [Size] ) : _begin( arr ), _end( arr + Size ) {}
+	span( OtherType (& arr) [Size] ) : thisSpan( arr, Size ) {}
 
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( const span< OtherType > & other ) : _begin( other.begin() ), _end( other.end() ) {}
+	span( const span< OtherType > & other ) : thisSpan( other.begin(), other.end() ) {}
 
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span< ElemType > & operator=( const span< OtherType > & other ) { _begin = other.begin(); _end = other.end(); return *this; }
+	span< ElemType > & operator=( const span< OtherType > & other )
+		{ _begin = other.begin(); _end = other.end(); return *this; }
 
 	ElemType * begin() const { return _begin; }
 	ElemType * end() const { return _end; }
@@ -92,7 +95,8 @@ class fixed_span
 
 	template< typename OtherType,
 		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	fixed_span< ElemType, Size > & operator=( fixed_span< OtherType, Size > other ) { _begin = other.begin(); return *this; }
+	fixed_span< ElemType, Size > & operator=( fixed_span< OtherType, Size > other )
+		{ _begin = other.begin(); return *this; }
 
 	ElemType * begin() const { return _begin; }
 	ElemType * end() const { return _begin + Size; }
@@ -139,9 +143,9 @@ class const_byte_span : public span< const uint8_t >
 	const_byte_span & operator=( const baseSpan & other ) { baseSpan::operator=( other ); return *this; }
 
 	// allow using chars where bytes are expected
-	const_byte_span( const span< const char > & other )
+	const_byte_span( span< const char > other )
 		: baseSpan( reinterpret_cast< const uint8_t * >( other.data() ), other.size() ) {}
-	const_byte_span( const span< char > & other )
+	const_byte_span( span< char > other )
 		: baseSpan( reinterpret_cast< uint8_t * >( other.data() ), other.size() ) {}
 };
 

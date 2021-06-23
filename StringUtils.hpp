@@ -63,12 +63,22 @@ void to_lower_in_place( std::string & str );
 
 bool starts_with( const std::string & str, const std::string & prefix );
 
-byte_span make_byte_span( std::string & str )
+inline char_span make_span( std::string & str )
+{
+	return { const_cast< char * >( str.data() ), str.size() };
+}
+
+inline const_char_span make_span( const std::string & str )
+{
+	return { str.data(), str.size() };
+}
+
+inline byte_span make_byte_span( std::string & str )
 {
 	return { reinterpret_cast< uint8_t * >( const_cast< char * >( str.data() ) ), str.size() };
 }
 
-const_byte_span make_byte_span( const std::string & str )
+inline const_byte_span make_byte_span( const std::string & str )
 {
 	return { reinterpret_cast< const uint8_t * >( str.data() ), str.size() };
 }

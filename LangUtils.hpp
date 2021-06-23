@@ -50,21 +50,6 @@ Iterator advance( Iterator it, Distance n )
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  own::span helpers
-
-template< typename ContType >
-auto make_span( ContType & cont ) -> span< typename std::remove_reference< decltype( *std::begin(cont) ) >::type >
-{
-	return { &*std::begin(cont), &*std::end(cont) };
-}
-template< typename ContType >
-auto make_span( const ContType & cont ) -> span< typename std::remove_reference< decltype( *std::begin(cont) ) >::type >
-{
-	return { &*std::begin(cont), &*std::end(cont) };
-}
-
-
-//----------------------------------------------------------------------------------------------------------------------
 //  scope guards
 
 template< typename EndFunc >
