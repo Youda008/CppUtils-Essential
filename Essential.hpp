@@ -13,6 +13,7 @@
 #include <climits>
 #include <utility>  // move, forward, swap
 #include <type_traits>  // is_same, is_integral, ... (included from utility, can't be avoided)
+#include <cassert>
 
 using uint = unsigned int;
 using ushort = unsigned short;
@@ -31,8 +32,6 @@ using std::move;
 #else
 	#define MAYBE_UNUSED
 #endif
-
-#define TODO { throw "finish this!"; }
 
 
 #endif // CPPUTILS_ESSENTIAL_INCLUDED
