@@ -24,14 +24,14 @@ namespace own {
 
 // C++17
 template< typename Container >
-constexpr size_t size( const Container & cont )
+constexpr size_t size( const Container & cont ) noexcept
 {
 	return std::end(cont) - std::begin(cont);
 }
 
 // C++14
 template< typename Iter >
-constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i )
+constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i ) noexcept
 {
     return std::reverse_iterator<Iter>(i);
 }
@@ -58,7 +58,8 @@ class scope_guard
 	EndFunc _atEnd;
  public:
 	scope_guard( const EndFunc & endFunc ) : _atEnd( endFunc ) {}
-	~scope_guard() { _atEnd(); }
+	scope_guard( EndFunc && endFunc ) : _atEnd( move(endFunc) ) {}
+	~scope_guard() noexcept { _atEnd(); }
 };
 
 template< typename EndFunc >
@@ -67,15 +68,21 @@ scope_guard< EndFunc > at_scope_end_do( const EndFunc & endFunc )
 	return scope_guard< EndFunc >( endFunc );
 }
 
+template< typename EndFunc >
+scope_guard< EndFunc > at_scope_end_do( EndFunc && endFunc )
+{
+	return scope_guard< EndFunc >( move(endFunc) );
+}
+
 
 //----------------------------------------------------------------------------------------------------------------------
 //  type traits helpers
 
-/// this determines types that are convertible to integer and serializable to network stream
+/// Determines types that are convertible to integer and serializable to network stream.
 template< typename Type >
 struct is_int_or_enum : public std::integral_constant< bool, std::is_integral<Type>::value || std::is_enum<Type>::value > {};
 
-/// for integer it returns the integer, and for enum it returns its underlying_type
+/// For integer it returns the integer and for enum it returns its underlying_type.
 // https://stackoverflow.com/questions/56972288/metaprogramming-construct-that-returns-underlying-type-for-an-enum-and-integer-f
 template< typename Type >
 struct int_type {
@@ -86,9 +93,9 @@ struct int_type {
 	>::type::type;
 };
 
-/// correctly converts an enum value to its underlying integer type
+/// Correctly converts an enum value to its underlying integer type.
 template< typename EnumType >
-typename std::underlying_type< EnumType >::type enumToInt( EnumType num )
+typename std::underlying_type< EnumType >::type enumToInt( EnumType num ) noexcept
 {
 	return static_cast< typename std::underlying_type< EnumType >::type >( num );
 }

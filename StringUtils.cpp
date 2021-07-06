@@ -13,7 +13,7 @@
 namespace own {
 
 
-void to_lower_in_place( std::string & str )
+void to_lower_in_place( std::string & str ) noexcept
 {
 	for (size_t i = 0; i < str.size(); ++i)
 	{
@@ -28,7 +28,7 @@ std::string to_lower( const std::string & str )
 	return copy;
 }
 
-bool starts_with( const std::string & str, const std::string & prefix )
+bool starts_with( const std::string & str, const std::string & prefix ) noexcept
 {
 	return str.compare( 0, prefix.size(), prefix ) == 0;
 }

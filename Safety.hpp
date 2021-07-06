@@ -15,7 +15,7 @@ enum class SafetyChecks
 	Enabled
 };
 
-#ifdef DEBUG
+#ifdef SAFETY_CHECKS
 	constexpr SafetyChecks defaultSafetyChecks = SafetyChecks::Enabled;
 #else
 	constexpr SafetyChecks defaultSafetyChecks = SafetyChecks::Disabled;

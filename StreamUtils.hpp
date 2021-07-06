@@ -42,10 +42,12 @@ std::string read_until( std::istream & is, char delim );
 //----------------------------------------------------------------------------------------------------------------------
 //  output utils
 
+/// Helper object that will output certain characted n times into a std::ostream.
+/** Intended usage: std::cout << repeat_char('a', 5) << std::endl; */
 class repeat_char
 {
  public:
-	repeat_char( char c, size_t count ) : c(c), count(count) {}
+	repeat_char( char c, size_t count ) noexcept : c(c), count(count) {}
 	friend std::ostream & operator<<( std::ostream & os, repeat_char repeat )
 	{
 		while (repeat.count --> 0)

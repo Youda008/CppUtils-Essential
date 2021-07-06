@@ -1,6 +1,3 @@
-#include <cassert>
-
-#define assert_msg( expr, message ) assert(( (void)message, expr ))
 
 [[noreturn]] void critical_error( const char * format, ... );
 
