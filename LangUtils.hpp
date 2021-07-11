@@ -22,13 +22,6 @@ namespace own {
 //----------------------------------------------------------------------------------------------------------------------
 //  things backported from C++ standards newer than C++11
 
-// C++17
-template< typename Container >
-constexpr size_t size( const Container & cont ) noexcept
-{
-	return std::end(cont) - std::begin(cont);
-}
-
 // C++14
 template< typename Iter >
 constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i ) noexcept

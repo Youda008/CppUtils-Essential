@@ -13,7 +13,6 @@
 #include <climits>
 #include <utility>  // move, forward, swap
 #include <type_traits>  // is_same, is_integral, ... (included from utility, can't be avoided)
-#include <cassert>
 
 using uint = unsigned int;
 using ushort = unsigned short;
@@ -22,6 +21,25 @@ using ullong = unsigned long long;
 //using byte = uint8_t;
 
 using std::move;
+
+
+namespace own {
+
+// C++17
+template< typename Container >
+constexpr size_t size( const Container & cont ) noexcept
+{
+	return cont.begin() - cont.end();
+}
+
+// In C++11 std::begin and std::end is not constexpr so we have to make a specialization
+template< typename ElemType, size_t Size >
+constexpr size_t size( const ElemType (&) [Size] ) noexcept
+{
+	return Size;
+}
+
+} // namespace own
 
 
 // Compiler dependent way to silence unused variable warnings in C++11.
