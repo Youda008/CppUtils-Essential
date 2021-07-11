@@ -42,6 +42,7 @@ bool from_string( const std::string & src, DestType & dest )
 	return is.eof() || !is.fail();
 }
 
+#ifndef NO_EXCEPTIONS
 template< typename DestType >
 DestType from_string( const std::string & src )
 {
@@ -52,6 +53,7 @@ DestType from_string( const std::string & src )
 	}
 	return dest;
 }
+#endif
 
 
 //----------------------------------------------------------------------------------------------------------------------

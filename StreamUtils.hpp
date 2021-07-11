@@ -23,6 +23,7 @@ namespace own {
 //----------------------------------------------------------------------------------------------------------------------
 //  input parsing
 
+#ifndef NO_EXCEPTIONS
 template< typename DestType >
 DestType read( std::istream & is )
 {
@@ -34,6 +35,7 @@ DestType read( std::istream & is )
 	}
 	return dest;
 }
+#endif
 
 void read_until( std::istream & is, std::string & dest, char delim );
 std::string read_until( std::istream & is, char delim );
@@ -48,7 +50,7 @@ class repeat_char
 {
  public:
 	repeat_char( char c, size_t count ) noexcept : c(c), count(count) {}
-	friend std::ostream & operator<<( std::ostream & os, repeat_char repeat )
+	friend std::ostream & operator<<( std::ostream & os, repeat_char repeat ) noexcept
 	{
 		while (repeat.count --> 0)
 			os << repeat.c;
