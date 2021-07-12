@@ -14,6 +14,7 @@
 #include "Span.hpp"
 
 #include <iterator>  // advance, begin, end
+#include <memory>
 
 
 namespace own {
@@ -21,6 +22,13 @@ namespace own {
 
 //----------------------------------------------------------------------------------------------------------------------
 //  things backported from C++ standards newer than C++11
+
+// C++14
+template< typename Type, typename ... Args >
+std::unique_ptr< Type > make_unique( Args && ... args )
+{
+	return std::unique_ptr< Type >( new Type( std::forward<Args>(args) ... ) );
+}
 
 // C++14
 template< typename Iter >
