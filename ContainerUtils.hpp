@@ -65,6 +65,22 @@ auto make_fixex_span( const std::array< ElemType, Size > & cont ) noexcept
 
 
 //----------------------------------------------------------------------------------------------------------------------
+//  misc
+
+template< typename Type, typename std::enable_if< std::is_trivial<Type>::value, int >::type = 0 >
+size_t sizeofVector( const std::vector< Type > & vec ) noexcept
+{
+	return vec.size() * sizeof( Type );
+}
+
+template< typename Type, size_t Size, typename std::enable_if< std::is_trivial<Type>::value, int >::type = 0 >
+size_t sizeofArray( const std::array< Type, Size > & arr ) noexcept
+{
+	return arr.size() * sizeof( Type );
+}
+
+
+//----------------------------------------------------------------------------------------------------------------------
 
 
 } // namespace own

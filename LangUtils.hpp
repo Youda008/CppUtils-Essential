@@ -103,6 +103,16 @@ typename std::underlying_type< EnumType >::type enumToInt( EnumType num ) noexce
 
 
 //----------------------------------------------------------------------------------------------------------------------
+//  misc
+
+template< typename Type >
+Type & unconst( const Type & x )
+{
+	return const_cast< Type & >( x );
+}
+
+
+//----------------------------------------------------------------------------------------------------------------------
 
 
 } // namespace own
