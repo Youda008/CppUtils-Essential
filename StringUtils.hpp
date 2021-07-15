@@ -35,6 +35,14 @@ inline std::string operator "" _s( const char * str, size_t size )
 //  parsing
 
 template< typename DestType >
+std::string to_string( const DestType & dest )
+{
+	std::ostringstream os;
+	os << dest;
+	return os.str();
+}
+
+template< typename DestType >
 bool from_string( const std::string & src, DestType & dest )
 {
 	std::istringstream is( src );
