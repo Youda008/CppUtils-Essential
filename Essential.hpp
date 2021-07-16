@@ -9,6 +9,7 @@
 #define CPPUTILS_ESSENTIAL_INCLUDED
 
 
+#include <cstddef>
 #include <cstdint>
 #include <climits>
 #include <utility>  // move, forward, swap

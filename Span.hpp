@@ -9,7 +9,8 @@
 #define CPPUTILS_SPAN_INCLUDED
 
 
-#include <cstdint>
+#include <cstddef>  // size_t
+#include <cstdint>  // uint8_t
 #include <type_traits>
 
 
