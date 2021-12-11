@@ -7,11 +7,19 @@
 
 #include "StringUtils.hpp"
 
-#include <cctype>  // isspace, tolower
+#include <cctype>  // isprint, isspace, tolower
 
 
 namespace own {
 
+
+bool is_printable( const_char_span str )
+{
+	for (char c : str)
+		if (!isprint(c))
+			return false;
+	return true;
+}
 
 void to_lower_in_place( std::string & str ) noexcept
 {
