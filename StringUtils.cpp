@@ -13,7 +13,7 @@
 namespace own {
 
 
-bool is_printable( const_char_span str )
+bool is_printable( const_char_span str ) noexcept
 {
 	for (char c : str)
 		if (!isprint(c))
@@ -29,7 +29,7 @@ void to_lower_in_place( std::string & str ) noexcept
 	}
 }
 
-std::string to_lower( const std::string & str )
+std::string to_lower( const std::string & str ) noexcept
 {
 	std::string copy( str );
 	to_lower_in_place( copy );

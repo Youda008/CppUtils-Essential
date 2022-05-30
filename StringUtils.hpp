@@ -13,22 +13,21 @@
 
 #include "Span.hpp"
 
+#include <cstring>
 #include <string>
 #include <sstream>
 #include <stdexcept>
 #include <typeinfo>
 
 
-namespace own {
-
-
-//----------------------------------------------------------------------------------------------------------------------
-
 // suffix s is C++14
 inline std::string operator "" _s( const char * str, size_t size )
 {
     return std::string( str, size );
 }
+
+
+namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -67,35 +66,16 @@ DestType from_string( const std::string & src )
 //----------------------------------------------------------------------------------------------------------------------
 //  other
 
-bool is_printable( const_char_span str );
+bool is_printable( const_char_span str ) noexcept;
+inline bool is_printable( const_byte_span data ) noexcept { return is_printable( data.cast< const char >() ); }
 
-inline bool is_printable( const_byte_span data ) { return is_printable( data.cast< const char >() ); }
-
-std::string to_lower( const std::string & str );
-
+std::string to_lower( const std::string & str ) noexcept;
 void to_lower_in_place( std::string & str ) noexcept;
 
 bool starts_with( const std::string & str, const std::string & prefix ) noexcept;
 
-inline char_span make_span( std::string & str )
-{
-	return { const_cast< char * >( str.data() ), str.size() };
-}
-
-inline const_char_span make_span( const std::string & str ) noexcept
-{
-	return { str.data(), str.size() };
-}
-
-inline byte_span make_byte_span( std::string & str ) noexcept
-{
-	return { reinterpret_cast< uint8_t * >( const_cast< char * >( str.data() ) ), str.size() };
-}
-
-inline const_byte_span make_byte_span( const std::string & str ) noexcept
-{
-	return { reinterpret_cast< const uint8_t * >( str.data() ), str.size() };
-}
+inline char_span span_from_c_string( char * str ) noexcept { return make_span( str, strlen(str) ); }
+inline const_char_span span_from_c_string( const char * str ) noexcept { return make_span( str, strlen(str) ); }
 
 
 //----------------------------------------------------------------------------------------------------------------------

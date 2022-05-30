@@ -9,19 +9,94 @@
 #define CPPUTILS_SPAN_INCLUDED
 
 
-#include <cstddef>  // size_t
-#include <cstdint>  // uint8_t
-#include <type_traits>
+#include "Essential.hpp"
+
+#include "TypeTraits.hpp"
+#include "CriticalError.hpp"
+
+#include <array>    // fixed_span construction, size_t, begin, end, ...
 
 
 namespace own {
 
 
 //======================================================================================================================
-/// Variant of span with compile-time length.
-/** Use this when you know already know how long the span will be when writing your code. */
+/// Generalization over continuous-memory containers.
+/** To be used instead of pair of buffer pointer and size. */
 
-template< typename ElemType, size_t Size >
+template< typename ElemType >
+class span
+{
+	ElemType * _begin;
+	ElemType * _end;
+
+ public:
+
+	span() noexcept : _begin( nullptr ), _end( nullptr ) {}
+
+	// The templates with OtherType are required to allow constructing  span< const char > from span< char >
+	// or  span< BaseClass > from span< SubClass >.
+
+	// construct manually from pair of pointers
+	span( ElemType * begin, ElemType * end ) noexcept : _begin( begin ), _end( end ) {}
+
+	// construct manually from a data pointer and size
+	span( ElemType * data, size_t size ) noexcept : _begin( data ), _end( data + size ) {}
+
+	// deduce from generic container
+	template< typename ContType >
+	span( ContType & cont ) noexcept : span( fut::data(cont), fut::size(cont) ) {}
+
+	template< typename ContType >
+	span( const ContType & cont ) noexcept : span( fut::data(cont), fut::size(cont) ) {}
+
+	// construct from compatible span
+	template< typename OtherType, REQUIRES( std::is_convertible< OtherType*, ElemType* >::value ) >
+	span( span< OtherType > other ) noexcept : span( other.data(), other.size() ) {}
+
+	// assign
+	span & operator=( const span & other ) noexcept = default;
+
+	ElemType * begin() const noexcept { return _begin; }
+	ElemType * end() const noexcept { return _end; }
+	ElemType * data() const noexcept { return _begin; }
+	size_t size() const noexcept { return size_t( _end - _begin ); }
+	bool empty() const noexcept { return _begin == _end; }
+
+	span shorter( size_t newSize ) const noexcept
+	{
+		if (newSize > size())
+			critical_error( "attempted to increase span size from %zu to %zu", size(), newSize );
+		return span( _begin, newSize );
+	}
+
+	template< typename OtherType >
+	span< OtherType > cast() const noexcept
+	{
+		return { reinterpret_cast< OtherType * >( _begin ), reinterpret_cast< OtherType * >( _end ) };
+	}
+
+	// specialized functions only available for some ElemTypes
+	template< typename T = ElemType,
+		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, char >::value ) >
+	span< typename corresponding_constness< T, uint8_t >::type > as_bytes() const noexcept
+	{
+		return cast< typename corresponding_constness< T, uint8_t >::type >();
+	}
+	template< typename T = ElemType,
+		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, uint8_t >::value ) >
+	span< typename corresponding_constness< T, char >::type > as_chars() const noexcept
+	{
+		return cast< typename corresponding_constness< T, char >::type >();
+	}
+};
+
+
+//======================================================================================================================
+/// Variant of own::span with compile-time length.
+/** Use this when you know how long the span is at compile-time. */
+
+template< typename ElemType, size_t size_ >
 class fixed_span
 {
 	ElemType * _begin;
@@ -30,242 +105,178 @@ class fixed_span
 
 	fixed_span() noexcept : _begin( nullptr ) {}
 
-	// construct manually from a data pointer and template size
-	template< typename OtherType,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	fixed_span( OtherType * data ) noexcept : _begin( data ) {}
+	// construct from static containers
+	fixed_span( ElemType (& arr) [size_] ) noexcept : _begin( arr ) {}
+	fixed_span( std::array< ElemType, size_ > & arr ) noexcept : _begin( arr.data() ) {}
+	fixed_span( const std::array< ElemType, size_ > & arr ) noexcept : _begin( arr.data() ) {}
 
-	// copy
-	template< typename OtherType,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	fixed_span( const fixed_span< OtherType, Size > & other ) noexcept : _begin( other.begin() ) {}
+	// The templates with OtherType are required to allow constructing  span< const char > from span< char >
+	// or  span< BaseClass > from span< SubClass >.
+
+	// copy from compatible spans
+	template< typename OtherType, REQUIRES( std::is_convertible< OtherType*, ElemType* >::value ) >
+	fixed_span( fixed_span< OtherType, size_ > other ) noexcept
+		: _begin( other.begin() ) {}
 
 	// assign
-	template< typename OtherType,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	fixed_span< ElemType, Size > & operator=( fixed_span< OtherType, Size > other ) noexcept
-		{ _begin = other.begin(); return *this; }
+	fixed_span & operator=( const fixed_span & other ) noexcept = default;
 
 	ElemType * begin() const noexcept { return _begin; }
-	ElemType * end() const noexcept { return _begin + Size; }
+	ElemType * end() const noexcept { return _begin + size_; }
 	ElemType * data() const noexcept { return _begin; }
-	size_t size() const noexcept { return Size; }
-	bool empty() const noexcept { return Size == 0; }
+	size_t size() const noexcept { return size_; }
+	bool empty() const noexcept { return size_ == 0; }
+
+	// convert to dynamic span
+	span< ElemType > dynamic() const noexcept { return span< ElemType >( _begin, size_ ); }
+	operator span< ElemType >() const noexcept { return dynamic(); }
+
+	template< size_t newSize >
+	fixed_span< ElemType, newSize > shorter() const noexcept
+	{
+		static_assert( newSize <= size_, "newSize must be smaller than current size" );
+		return from_ptr< ElemType, newSize >( _begin );
+	}
 
 	template< typename OtherType >
-	fixed_span< OtherType, Size > cast() const noexcept
+	fixed_span< OtherType, size_ > cast() const noexcept
 	{
-		return { reinterpret_cast< OtherType * >( _begin ) };
+		return from_ptr< OtherType, size_ >( reinterpret_cast< OtherType * >( _begin ) );
 	}
+
+	template< typename T = ElemType,
+		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, char >::value ) >
+	fixed_span< typename corresponding_constness< T, uint8_t >::type, size_ > as_bytes() const noexcept
+	{
+		return cast< typename corresponding_constness< T, uint8_t >::type >();
+	}
+	template< typename T = ElemType,
+		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, uint8_t >::value ) >
+	fixed_span< typename corresponding_constness< T, char >::type, size_ > as_chars() const noexcept
+	{
+		return cast< typename corresponding_constness< T, char >::type >();
+	}
+
+ private:
+
+	// Members of this class with different template arguments are not normally accessible.
+	template< typename OtherType, size_t otherSize >
+	friend class fixed_span;
+
+	template< typename OtherType, size_t otherSize >
+	static fixed_span< OtherType, otherSize > from_ptr( OtherType * begin ) noexcept
+	{
+		fixed_span< OtherType, otherSize > s;
+		s._begin = begin;
+		return s;
+	}
+
 };
 
 
 //======================================================================================================================
-/// Generalization over continuous-memory containers.
-/** To be used instead of raw buffer pointers as often as possible. */
+//  aliases
 
+using byte_span = span< uint8_t >;
+using const_byte_span = span< const uint8_t >;
+using char_span = span< char >;
+using const_char_span = span< const char >;
+
+template< size_t size_ > using fixed_byte_span = fixed_span< uint8_t, size_ >;
+template< size_t size_ > using fixed_const_byte_span = fixed_span< const uint8_t, size_ >;
+template< size_t size_ > using fixed_char_span = fixed_span< char, size_ >;
+template< size_t size_ > using fixed_const_char_span = fixed_span< const char, size_ >;
+
+
+//======================================================================================================================
+//  automatic template argument deduction
+
+// from pointers
 template< typename ElemType >
-class span
+auto make_span( ElemType * begin, ElemType * end ) noexcept
+ -> span< ElemType >
 {
-	ElemType * _begin;
-	ElemType * _end;
+	return { begin, end };
+}
+template< typename ElemType >
+auto make_span( ElemType * data, size_t size ) noexcept
+ -> span< ElemType >
+{
+	return { data, size };
+}
 
-	using thisSpan = span< ElemType >;
+// from generic containers
+template< typename ContType >
+auto make_span( ContType & cont ) noexcept
+ -> span< typename range_value<ContType>::type >
+{
+	return { fut::data(cont), fut::size(cont) };
+}
+template< typename ContType >
+auto make_span( const ContType & cont ) noexcept
+ -> span< const typename range_value<ContType>::type >
+{
+	return { fut::data(cont), fut::size(cont) };
+}
 
- public:
-
-	span() noexcept : _begin( nullptr ), _end( nullptr ) {}
-
-	// the templates with OtherType are required to allow constructing  span< const char > from span< char >
-
-	// construct manually from pair of pointers
-	template< typename OtherType,
-		typename std::enable_if<std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( OtherType * begin, ElemType * end ) noexcept : _begin( begin ), _end( end ) {}
-
-	// construct manually from a data pointer and size
-	template< typename OtherType,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( OtherType * data, size_t size ) noexcept : _begin( data ), _end( data + size ) {}
-
-	// construct from fixed_span
-	template< typename OtherType, size_t Size,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( const fixed_span< OtherType, Size > & other ) noexcept : thisSpan( other.data, Size ) {}
-
-	// deduce from static C array
-	template< typename OtherType, size_t Size,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( OtherType (& arr) [Size] ) noexcept : thisSpan( arr, Size ) {}
-
-	// copy
-	template< typename OtherType,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span( const span< OtherType > & other ) noexcept : thisSpan( other.begin(), other.end() ) {}
-
-	// assign
-	template< typename OtherType,
-		typename std::enable_if< std::is_convertible< OtherType*, ElemType* >::value, int >::type = 0 >
-	span< ElemType > & operator=( const span< OtherType > & other ) noexcept
-		{ _begin = other.begin(); _end = other.end(); return *this; }
-
-	ElemType * begin() const noexcept { return _begin; }
-	ElemType * end() const noexcept { return _end; }
-	ElemType * data() const noexcept { return _begin; }
-	size_t size() const noexcept { return size_t( _end - _begin ); }
-	bool empty() const noexcept { return _begin == _end; }
-
-	template< typename OtherType >
-	span< OtherType > cast() const noexcept
-	{
-		return { reinterpret_cast< OtherType * >( _begin ), reinterpret_cast< OtherType * >( _end ) };
-	}
-};
-
+// from static containers
+template< typename ElemType, size_t size_ >
+auto make_fixed_span( ElemType (& arr) [size_] ) noexcept
+ -> fixed_span< ElemType, size_ >
+{
+	return { arr };
+}
+template< typename ElemType, size_t size_ >
+auto make_fixed_span( std::array< ElemType, size_ > & arr ) noexcept
+ -> fixed_span< ElemType, size_ >
+{
+	return { arr };
+}
+template< typename ElemType, size_t size_ >
+auto make_fixed_span( const std::array< ElemType, size_ > & arr ) noexcept
+ -> fixed_span< const ElemType, size_ >
+{
+	return { arr };
+}
 
 
 //======================================================================================================================
-//  specialized spans
+//  automatic template argument deduction with forced const
 
-class byte_span : public span< uint8_t >
+// from pointers
+template< typename ElemType >
+auto make_const_span( ElemType * begin, ElemType * end ) noexcept
+ -> span< const ElemType >
 {
-	using baseSpan = span< uint8_t >;
-
- public:
-
-	using span< uint8_t >::span;
-
-	byte_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	byte_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	span< char > toChars() const noexcept { return { reinterpret_cast< char * >( data() ), size() }; }
-};
-
-class const_byte_span : public span< const uint8_t >
+	return { begin, end };
+}
+template< typename ElemType >
+auto make_const_span( ElemType * data, size_t size ) noexcept
+ -> span< const ElemType >
 {
-	using baseSpan = span< const uint8_t >;
-
- public:
-
-	using span< const uint8_t >::span;
-
-	const_byte_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	const_byte_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	span< const char > toChars() const noexcept { return { reinterpret_cast< const char * >( data() ), size() }; }
-};
-
-class char_span : public span< char >
-{
-	using baseSpan = span< char >;
-
- public:
-
-	using span< char >::span;
-
-	char_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	char_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	span< uint8_t > toBytes() const noexcept { return { reinterpret_cast< uint8_t * >( data() ), size() }; }
-};
-
-class const_char_span : public span< const char >
-{
-	using baseSpan = span< const char >;
-
- public:
-
-	using span< const char >::span;
-
-	const_char_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	const_char_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	span< const uint8_t > toBytes() const noexcept { return { reinterpret_cast< const uint8_t * >( data() ), size() }; }
-};
-
-
-
-
-template< size_t Size >
-class fixed_byte_span : public fixed_span< uint8_t, Size >
-{
-	using baseSpan = fixed_span< uint8_t, Size >;
-
- public:
-
-	using fixed_span< uint8_t, Size >::fixed_span;
-
-	fixed_byte_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	fixed_byte_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	fixed_span< char, Size > toChars() const noexcept { return { reinterpret_cast< char * >( this->data() ) }; }
-};
-
-template< size_t Size >
-class fixed_const_byte_span : public fixed_span< const uint8_t, Size >
-{
-	using baseSpan = fixed_span< const uint8_t, Size >;
-
- public:
-
-	using fixed_span< const uint8_t, Size >::fixed_span;
-
-	fixed_const_byte_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	fixed_const_byte_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	fixed_span< const char, Size > toChars() const noexcept { return { reinterpret_cast< const char * >( this->data() ) }; }
-};
-
-template< size_t Size >
-class fixed_char_span : public fixed_span< char, Size >
-{
-	using baseSpan = fixed_span< char, Size >;
-
- public:
-
-	using fixed_span< char, Size >::fixed_span;
-
-	fixed_char_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	fixed_char_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	fixed_span< uint8_t, Size > toBytes() const noexcept { return { reinterpret_cast< uint8_t * >( this->data() ) }; }
-};
-
-template< size_t Size >
-class fixed_const_char_span : public fixed_span< const char, Size >
-{
-	using baseSpan = fixed_span< const char, Size >;
-
- public:
-
-	using fixed_span< const char, Size >::fixed_span;
-
-	fixed_const_char_span( const baseSpan & other ) noexcept : baseSpan( other ) {}
-	fixed_const_char_span & operator=( const baseSpan & other ) noexcept { baseSpan::operator=( other ); return *this; }
-
-	fixed_span< const uint8_t, Size > toBytes() const noexcept { return { reinterpret_cast< const uint8_t * >( this->data() ) }; }
-};
-
-
-//======================================================================================================================
-//  deduce template params from C arrays and C string literals
-
-template< typename ElemType, size_t Size >
-fixed_span< ElemType, Size > make_span( ElemType (& arr) [Size] ) noexcept
-{
-	return fixed_span< ElemType, Size >( arr );
+	return { data, size };
 }
 
-template< size_t Size >
-fixed_byte_span< Size > make_span( uint8_t (& arr) [Size] ) noexcept
+// from generic containers
+template< typename ContType >
+auto make_const_span( ContType & cont ) noexcept
+ -> span< const typename range_value<ContType>::type >
 {
-	return fixed_byte_span< Size >( arr );
+	return { fut::data(cont), fut::size(cont) };
 }
 
-template< size_t Size >
-fixed_char_span< Size > make_span( char (& arr) [Size] ) noexcept
+// from static containers
+template< typename ElemType, size_t size_ >
+auto make_fixed_const_span( ElemType (& arr) [size_] ) noexcept
+ -> fixed_span< const ElemType, size_ >
 {
-	return fixed_char_span< Size >( arr );
+	return { arr };
+}
+template< typename ElemType, size_t size_ >
+auto make_fixed_const_span( std::array< ElemType, size_ > & arr ) noexcept
+ -> fixed_span< const ElemType, size_ >
+{
+	return { arr };
 }
 
 

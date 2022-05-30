@@ -12,8 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <climits>
-#include <utility>  // move, forward, swap
-#include <type_traits>  // is_same, is_integral, ... (included from utility, can't be avoided)
+#include <utility>      // move, forward, swap
 
 using uint = unsigned int;
 using ushort = unsigned short;
@@ -22,23 +21,56 @@ using ullong = unsigned long long;
 //using byte = uint8_t;
 
 using std::move;
+using std::forward;
+
+
+// These things are so commonly used that they are moved from LangUtils here.
+namespace fut {
+
+
+// C++17
+template< typename ContType >
+constexpr size_t size( const ContType & cont ) noexcept
+{
+	return cont.begin() - cont.end();
+}
+// In C++11 std::begin and std::end is not constexpr so we have to make a specialization
+template< typename ElemType, size_t size_ >
+constexpr size_t size( const ElemType (&) [size_] ) noexcept
+{
+	return size_;
+}
+
+// C++17
+template< typename ContType >
+constexpr auto data( ContType & cont ) noexcept -> decltype( cont.data() )
+{
+    return cont.data();
+}
+template< typename ContType >
+constexpr auto data( const ContType & cont ) noexcept -> decltype( cont.data() )
+{
+    return cont.data();
+}
+template< typename ElemType, size_t size_ >
+constexpr ElemType * data( ElemType (& array) [size_] ) noexcept
+{
+    return array;
+}
+
+
+} // namespace fut
 
 
 namespace own {
 
-// C++17
-template< typename Container >
-constexpr size_t size( const Container & cont ) noexcept
+
+template< typename Type >
+Type & unconst( const Type & x ) noexcept
 {
-	return cont.begin() - cont.end();
+	return const_cast< Type & >( x );
 }
 
-// In C++11 std::begin and std::end is not constexpr so we have to make a specialization
-template< typename ElemType, size_t Size >
-constexpr size_t size( const ElemType (&) [Size] ) noexcept
-{
-	return Size;
-}
 
 } // namespace own
 

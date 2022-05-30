@@ -13,7 +13,8 @@
 
 #include "Span.hpp"
 
-#include <iterator>  // advance, begin, end
+#include <iterator>   // advance, begin, end
+#include <algorithm>  // find_if
 #include <array>
 #include <vector>
 
@@ -22,58 +23,98 @@ namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  own::span helpers
+//  range-like helpers
 
-template< typename ElemType >
-auto make_span( std::vector< ElemType > & cont ) noexcept
- -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
+template< typename ContType, typename ValType >
+typename ContType::iterator find( ContType & cont, const ValType & val )
 {
-	return { cont.data(), cont.size() };
+	return std::find( std::begin(cont), std::end(cont), val );
 }
-template< typename ElemType >
-auto make_span( const std::vector< ElemType > & cont ) noexcept
- -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
+template< typename ContType, typename ValType >
+typename ContType::const_iterator find( const ContType & cont, const ValType & val )
 {
-	return { cont.data(), cont.size() };
+	return std::find( std::begin(cont), std::end(cont), val );
+}
+template< typename ContType, typename Predicate >
+typename ContType::iterator find_if( ContType & cont, Predicate pred )
+{
+	return std::find_if( std::begin(cont), std::end(cont), pred );
+}
+template< typename ContType, typename Predicate >
+typename ContType::const_iterator find_if( const ContType & cont, Predicate pred )
+{
+	return std::find_if( std::begin(cont), std::end(cont), pred );
+}
+template< typename ContType, typename Predicate >
+typename ContType::iterator find_if_not( ContType & cont, Predicate pred )
+{
+	return std::find_if_not( std::begin(cont), std::end(cont), pred );
+}
+template< typename ContType, typename Predicate >
+typename ContType::const_iterator find_if_not( const ContType & cont, Predicate pred )
+{
+	return std::find_if_not( std::begin(cont), std::end(cont), pred );
 }
 
-template< typename ElemType, size_t Size >
-auto make_span( std::array< ElemType, Size > & cont ) noexcept
- -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
+// How is this still not in C++ even in 2020?
+template< typename ContType, typename ValType >
+bool contains( const ContType & cont, const ValType & val )
 {
-	return { cont.data(), cont.size() };
+	return std::find( std::begin(cont), std::end(cont), val ) != std::end(cont);
 }
-template< typename ElemType, size_t Size >
-auto make_span( const std::array< ElemType, Size > & cont ) noexcept
- -> span< typename std::remove_reference< decltype( cont[0] ) >::type >
+template< typename ContType, typename Predicate >
+bool contains_if( const ContType & cont, Predicate pred )
 {
-	return { cont.data(), cont.size() };
+	return std::find_if( std::begin(cont), std::end(cont), pred ) != std::end(cont);
+}
+template< typename ContType, typename Predicate >
+bool contains_if_not( const ContType & cont, Predicate pred )
+{
+	return std::find_if_not( std::begin(cont), std::end(cont), pred ) != std::end(cont);
 }
 
-template< typename ElemType, size_t Size >
-auto make_fixex_span( std::array< ElemType, Size > & cont ) noexcept
- -> fixed_span< typename std::remove_reference< decltype( cont[0] ) >::type, Size >
+template< typename ContType1, typename ContType2 >
+bool equal( const ContType1 & cont1, const ContType2 & cont2 )
 {
-	return { cont.data() };
+	return std::equal( std::begin(cont1), std::end(cont1), std::begin(cont2), std::end(cont2) );
 }
-template< typename ElemType, size_t Size >
-auto make_fixex_span( const std::array< ElemType, Size > & cont ) noexcept
- -> fixed_span< const typename std::remove_reference< decltype( cont[0] ) >::type, Size >
+
+template< typename DstContType, typename SrcContType >
+void append( DstContType & dstCont, const SrcContType & srcCont )
 {
-	return { cont.data() };
+	dstCont.insert( std::end(dstCont), std::begin(srcCont), std::end(srcCont) );
 }
 
 
 //----------------------------------------------------------------------------------------------------------------------
 //  misc
 
-template< typename Type, typename std::enable_if< std::is_trivial<Type>::value, int >::type = 0 >
+template< typename Elem, size_t size >
+std::array< Elem, size > to_std_array( const Elem (& cArray) [size] )
+{
+	std::array< Elem, size > cppArray;
+	std::copy( std::begin(cArray), std::end(cArray), cppArray.begin() );
+	return cppArray;
+}
+
+// this allows us to write  make_array< 16 >( u"Blabla" )
+// and it returns an array of 16 elements that start with the given constant and whose type is automatically deduced
+template< size_t dstSize, typename Elem, size_t srcSize >
+std::array< Elem, dstSize > make_std_array( const Elem (& cArray) [srcSize] )
+{
+	static_assert( srcSize <= dstSize, "array is too small" );
+	std::array< Elem, dstSize > cppArray{};
+	std::copy( cArray, cArray + srcSize, cppArray.begin() );
+	return cppArray;
+}
+
+template< typename Type, REQUIRES( std::is_trivial<Type>::value ) >
 size_t sizeofVector( const std::vector< Type > & vec ) noexcept
 {
 	return vec.size() * sizeof( Type );
 }
 
-template< typename Type, size_t Size, typename std::enable_if< std::is_trivial<Type>::value, int >::type = 0 >
+template< typename Type, size_t Size, REQUIRES( std::is_trivial<Type>::value ) >
 size_t sizeofArray( const std::array< Type, Size > & arr ) noexcept
 {
 	return arr.size() * sizeof( Type );

@@ -11,35 +11,48 @@
 
 #include "Essential.hpp"
 
-#include "Span.hpp"
+#include "TypeTraits.hpp"
 
 #include <iterator>  // advance, begin, end
 #include <memory>
 
 
-namespace own {
-
-
 //----------------------------------------------------------------------------------------------------------------------
-//  things backported from C++ standards newer than C++11
+//  utils from standard library of a newer C++ standard
+
+namespace fut {
+
 
 // C++14
 template< typename Type, typename ... Args >
 std::unique_ptr< Type > make_unique( Args && ... args )
 {
-	return std::unique_ptr< Type >( new Type( std::forward<Args>(args) ... ) );
+	return std::unique_ptr< Type >( new Type( std::forward< Args >( args ) ... ) );
 }
 
 // C++14
 template< typename Iter >
-constexpr std::reverse_iterator<Iter> make_reverse_iterator( Iter i ) noexcept
+constexpr std::reverse_iterator< Iter > make_reverse_iterator( Iter it ) noexcept
 {
-    return std::reverse_iterator<Iter>(i);
+    return std::reverse_iterator< Iter >( it );
+}
+
+// C++23
+template< typename EnumType, REQUIRES( std::is_enum<EnumType>::value ) >
+constexpr typename std::underlying_type< EnumType >::type to_underlying( EnumType num ) noexcept
+{
+	return static_cast< typename std::underlying_type< EnumType >::type >( num );
 }
 
 
+} // namespace fut
+
+
 //----------------------------------------------------------------------------------------------------------------------
-//  container helpers
+
+
+namespace own {
+
 
 /// return value variant of std::advance
 template< typename Iterator, typename Distance >
@@ -48,10 +61,6 @@ Iterator advance( Iterator it, Distance n )
 	std::advance( it, n );
 	return it;
 }
-
-
-//----------------------------------------------------------------------------------------------------------------------
-//  scope guards
 
 template< typename EndFunc >
 class scope_guard
@@ -76,46 +85,10 @@ scope_guard< EndFunc > at_scope_end_do( EndFunc && endFunc )
 }
 
 
-//----------------------------------------------------------------------------------------------------------------------
-//  type traits helpers
-
-/// Determines types that are convertible to integer and serializable to network stream.
-template< typename Type >
-struct is_int_or_enum : public std::integral_constant< bool, std::is_integral<Type>::value || std::is_enum<Type>::value > {};
-
-/// For integer it returns the integer and for enum it returns its underlying_type.
-// https://stackoverflow.com/questions/56972288/metaprogramming-construct-that-returns-underlying-type-for-an-enum-and-integer-f
-template< typename Type >
-struct int_type {
-	using type = typename std::conditional<
-		/*if*/ std::is_enum<Type>::value,
-		/*then*/ std::underlying_type<Type>,
-		/*else*/ std::enable_if< std::is_integral<Type>::value, Type >
-	>::type::type;
-};
-
-/// Correctly converts an enum value to its underlying integer type.
-template< typename EnumType >
-typename std::underlying_type< EnumType >::type enumToInt( EnumType num ) noexcept
-{
-	return static_cast< typename std::underlying_type< EnumType >::type >( num );
-}
-
-
-//----------------------------------------------------------------------------------------------------------------------
-//  misc
-
-template< typename Type >
-Type & unconst( const Type & x )
-{
-	return const_cast< Type & >( x );
-}
-
-
-//----------------------------------------------------------------------------------------------------------------------
-
-
 } // namespace own
+
+
+//----------------------------------------------------------------------------------------------------------------------
 
 
 #endif // CPPUTILS_LANGUAGE_INCLUDED
