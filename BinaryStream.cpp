@@ -39,6 +39,14 @@ void BinaryOutputStream::writeBytes( const_byte_span buffer )
 	_curPos += buffer.size();
 }
 
+void BinaryOutputStream::writeChars( const_char_span buffer )
+{
+	checkWrite( buffer.size(), "chars" );
+
+	memcpy( _curPos, buffer.data(), buffer.size() );
+	_curPos += buffer.size();
+}
+
 void BinaryOutputStream::writeString( const string & str )
 {
 	checkWrite( str.size(), "string" );
@@ -64,6 +72,17 @@ void BinaryOutputStream::writeZeros( size_t numZeroBytes )
 }
 
 bool BinaryInputStream::readBytes( byte_span buffer ) noexcept
+{
+	if (!canRead( buffer.size() )) {
+		return false;
+	}
+
+	memcpy( buffer.data(), _curPos, buffer.size() );
+	_curPos += buffer.size();
+	return true;
+}
+
+bool BinaryInputStream::readChars( char_span buffer ) noexcept
 {
 	if (!canRead( buffer.size() )) {
 		return false;

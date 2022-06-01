@@ -129,7 +129,7 @@ class BinaryOutputStream
 	//-- strings and arrays --------------------------------------------------------------------------------------------
 
 	/// Writes raw bytes of an arbitrary array as they are, without any byte conversion or deep serialization.
-	template< typename ContType, REQUIRES( std::is_trivial< typename own::range_element<ContType>::type >::value ) >
+	template< typename ContType, REQUIRES( is_trivial_range<ContType>::value ) >
 	void writeRawArray( const ContType & array )
 	{
 		using ElemType = typename own::range_element< ContType >::type;
@@ -144,6 +144,9 @@ class BinaryOutputStream
 	/// Writes specified number of bytes from a continuous memory storage to the buffer.
 	void writeBytes( const_byte_span buffer );
 
+	/// Writes specified number of chars from a continuous memory storage to the buffer.
+	void writeChars( const_char_span buffer );
+
 	/// Writes a string WITHOUT its null terminator to the buffer.
 	void writeString( const std::string & str );
 
@@ -153,6 +156,12 @@ class BinaryOutputStream
 	BinaryOutputStream & operator<<( const_byte_span buffer )
 	{
 		writeBytes( buffer );
+		return *this;
+	}
+
+	BinaryOutputStream & operator<<( const_char_span buffer )
+	{
+		writeChars( buffer );
 		return *this;
 	}
 
@@ -386,7 +395,7 @@ class BinaryInputStream
 
 	/// \copydoc readRawArray( span< ElemType > )
 	// This overload is needed because the above function is a template and containers won't convert to span implicitly.
-	template< typename ContType, REQUIRES( std::is_trivial< typename range_value<ContType>::type >::value ) >
+	template< typename ContType, REQUIRES( is_trivial_range<ContType>::value ) >
 	bool readRawArray( ContType & array ) noexcept
 	{
 		return readRawArray( make_span( array ) );
@@ -394,7 +403,7 @@ class BinaryInputStream
 
 	/// Reads raw bytes of an arbitrary array into a resizable container.
 	/** The container is automatically resized before copying the data into it. */
-	template< typename ContType, REQUIRES( std::is_trivial< typename range_value<ContType>::type >::value ) >
+	template< typename ContType, REQUIRES( is_trivial_range<ContType>::value ) >
 	bool readResizableRawArray( ContType & cont, size_t size ) noexcept
 	{
 		using ElemType = typename range_value<ContType>::type;
@@ -412,6 +421,9 @@ class BinaryInputStream
 
 	/// Reads a span of bytes from the buffer into a given container.
 	bool readBytes( byte_span buffer ) noexcept;
+
+	/// Reads a span of bytes from the buffer into a given container.
+	bool readChars( char_span buffer ) noexcept;
 
 	/// Reads a span of bytes from the buffer into a resizable container.
 	/** The container is automatically resized before copying the bytes into it. */
@@ -450,6 +462,12 @@ class BinaryInputStream
 	BinaryInputStream & operator>>( byte_span buffer ) noexcept
 	{
 		readBytes( buffer );
+		return *this;
+	}
+
+	BinaryInputStream & operator>>( char_span buffer ) noexcept
+	{
+		readChars( buffer );
 		return *this;
 	}
 

@@ -35,6 +35,18 @@ struct remove_cvref
 namespace own {
 
 
+/// Compares bare value types without any const, volatile modifiers.
+template< typename T1, typename T2 >
+struct is_same_except_cv : std::is_same< typename std::remove_cv<T1>::type, typename std::remove_cv<T2>::type > {};
+
+/// Compares value types without added reference.
+template< typename T1, typename T2 >
+struct is_same_except_ref : std::is_same< typename std::remove_reference<T1>::type, typename std::remove_reference<T2>::type > {};
+
+/// Compares bare value types without any const, volatile modifiers and without reference.
+template< typename T1, typename T2 >
+struct is_same_except_cvref : std::is_same< typename fut::remove_cvref<T1>::type, typename fut::remove_cvref<T2>::type > {};
+
 /// This determines types that are convertible to integer and serializable to big endian.
 template< typename T >
 struct is_int_or_enum
@@ -74,6 +86,14 @@ struct corresponding_constness
 	>::type::type;
 };
 
+// https://stackoverflow.com/questions/13830158/check-if-a-variable-type-is-iterable
+template< typename T, typename = void >
+struct is_range : std::false_type {};
+template <typename T>
+struct is_range< T,
+	std::void_t< decltype( std::begin( std::declval< T & >() ) ), decltype( std::end( std::declval< T & >() ) ) >
+> : std::true_type {};
+
 template< typename T >
 struct range_element
 {
@@ -86,12 +106,33 @@ struct range_value
 	using type = typename fut::remove_cvref< decltype( *std::begin( std::declval< T & >() ) ) >::type;
 };
 
-template< typename T >
-struct is_byte_range
+namespace impl
 {
-	static constexpr bool value = std::is_same< typename range_value<T>::type, uint8_t >::value;
+	template< typename T, typename E, REQUIRES( is_range< T >::value ) >
+	constexpr bool is_range_of()
+	{
+		return std::is_same< typename range_element<T>::type, E >::value;
+	}
+	template< typename T, typename E, REQUIRES( !is_range< T >::value ) >
+	constexpr bool is_range_of()
+	{
+		return false;
+	}
+}
+template< typename T, typename E >
+struct is_range_of
+{
+	static constexpr bool value = impl::is_range_of< T, E >();
 };
 
+template< typename T >
+struct is_byte_range : is_range_of< T, uint8_t > {};
+
+template< typename T >
+struct is_trivial_range
+{
+	static constexpr bool value = is_range< T >::value && std::is_trivial< typename range_value<T>::type >::value;
+};
 
 template< typename T >
 struct is_c_array : std::false_type {};

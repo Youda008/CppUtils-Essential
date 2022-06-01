@@ -34,9 +34,6 @@ class span
 
 	span() noexcept : _begin( nullptr ), _end( nullptr ) {}
 
-	// The templates with OtherType are required to allow constructing  span< const char > from span< char >
-	// or  span< BaseClass > from span< SubClass >.
-
 	// construct manually from pair of pointers
 	span( ElemType * begin, ElemType * end ) noexcept : _begin( begin ), _end( end ) {}
 
@@ -44,14 +41,16 @@ class span
 	span( ElemType * data, size_t size ) noexcept : _begin( data ), _end( data + size ) {}
 
 	// deduce from generic container
-	template< typename ContType >
+	template< typename ContType, REQUIRES( is_range_of< ContType, typename std::remove_const<ElemType>::type >::value ) >
 	span( ContType & cont ) noexcept : span( fut::data(cont), fut::size(cont) ) {}
 
-	template< typename ContType >
+	template< typename ContType, REQUIRES( is_range_of< const ContType, ElemType >::value ) >
 	span( const ContType & cont ) noexcept : span( fut::data(cont), fut::size(cont) ) {}
 
 	// construct from compatible span
-	template< typename OtherType, REQUIRES( std::is_convertible< OtherType*, ElemType* >::value ) >
+	// The OtherType is required to allow constructing  span< const char > from span< char >
+	// or  span< BaseClass > from span< SubClass >.
+	template< typename OtherType, REQUIRES( std::is_convertible< OtherType *, ElemType * >::value ) >
 	span( span< OtherType > other ) noexcept : span( other.data(), other.size() ) {}
 
 	// assign
@@ -78,13 +77,13 @@ class span
 
 	// specialized functions only available for some ElemTypes
 	template< typename T = ElemType,
-		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, char >::value ) >
+		REQUIRES( std::is_same< T, ElemType >::value && is_same_except_cv< T, char >::value ) >
 	span< typename corresponding_constness< T, uint8_t >::type > as_bytes() const noexcept
 	{
 		return cast< typename corresponding_constness< T, uint8_t >::type >();
 	}
 	template< typename T = ElemType,
-		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, uint8_t >::value ) >
+		REQUIRES( std::is_same< T, ElemType >::value && is_same_except_cv< T, uint8_t >::value ) >
 	span< typename corresponding_constness< T, char >::type > as_chars() const noexcept
 	{
 		return cast< typename corresponding_constness< T, char >::type >();
@@ -110,11 +109,10 @@ class fixed_span
 	fixed_span( std::array< ElemType, size_ > & arr ) noexcept : _begin( arr.data() ) {}
 	fixed_span( const std::array< ElemType, size_ > & arr ) noexcept : _begin( arr.data() ) {}
 
-	// The templates with OtherType are required to allow constructing  span< const char > from span< char >
-	// or  span< BaseClass > from span< SubClass >.
-
 	// copy from compatible spans
-	template< typename OtherType, REQUIRES( std::is_convertible< OtherType*, ElemType* >::value ) >
+	// The OtherType is required to allow constructing  span< const char > from span< char >
+	// or  span< BaseClass > from span< SubClass >.
+	template< typename OtherType, REQUIRES( std::is_convertible< OtherType *, ElemType * >::value ) >
 	fixed_span( fixed_span< OtherType, size_ > other ) noexcept
 		: _begin( other.begin() ) {}
 
@@ -145,13 +143,13 @@ class fixed_span
 	}
 
 	template< typename T = ElemType,
-		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, char >::value ) >
+		REQUIRES( std::is_same< T, ElemType >::value && is_same_except_cv< T, char >::value ) >
 	fixed_span< typename corresponding_constness< T, uint8_t >::type, size_ > as_bytes() const noexcept
 	{
 		return cast< typename corresponding_constness< T, uint8_t >::type >();
 	}
 	template< typename T = ElemType,
-		REQUIRES( std::is_same< T, ElemType >::value && std::is_same< typename std::remove_const<T>::type, uint8_t >::value ) >
+		REQUIRES( std::is_same< T, ElemType >::value && is_same_except_cv< T, uint8_t >::value ) >
 	fixed_span< typename corresponding_constness< T, char >::type, size_ > as_chars() const noexcept
 	{
 		return cast< typename corresponding_constness< T, char >::type >();
