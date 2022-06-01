@@ -563,7 +563,7 @@ bool fromByteVector( const std::vector< uint8_t > & bytes, Type & obj )
 {
 	BinaryInputStream stream( bytes );
 	stream >> obj;
-	return stream.failed();
+	return !stream.failed();
 }
 
 

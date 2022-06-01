@@ -32,7 +32,7 @@ namespace fut {
 template< typename ContType >
 constexpr size_t size( const ContType & cont ) noexcept
 {
-	return cont.begin() - cont.end();
+	return cont.end() - cont.begin();
 }
 // In C++11 std::begin and std::end is not constexpr so we have to make a specialization
 template< typename ElemType, size_t size_ >
