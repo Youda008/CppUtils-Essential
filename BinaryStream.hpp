@@ -559,7 +559,7 @@ std::vector< uint8_t > toByteVector( const Type & obj )
 }
 
 template< typename Type >
-bool fromByteVector( const std::vector< uint8_t > & bytes, Type & obj )
+bool fromBytes( const_byte_span bytes, Type & obj )
 {
 	BinaryInputStream stream( bytes );
 	stream >> obj;
