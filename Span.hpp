@@ -173,7 +173,7 @@ class fixed_span
 
 
 //======================================================================================================================
-//  aliases
+// aliases
 
 using byte_span = span< uint8_t >;
 using const_byte_span = span< const uint8_t >;
@@ -187,7 +187,7 @@ template< size_t size_ > using fixed_const_char_span = fixed_span< const char, s
 
 
 //======================================================================================================================
-//  automatic template argument deduction
+// automatic template argument deduction
 
 // from pointers
 template< typename ElemType >
@@ -239,7 +239,7 @@ auto make_fixed_span( const std::array< ElemType, size_ > & arr ) noexcept
 
 
 //======================================================================================================================
-//  automatic template argument deduction with forced const
+// automatic template argument deduction with forced const
 
 // from pointers
 template< typename ElemType >

@@ -27,14 +27,14 @@ enum class Endianity
 
 
 //======================================================================================================================
-//  integer serialization and conversion
-//  NOTE: The following functions perform no boundary checking, caller must ensure there is enough space in the buffer
-//        to do the read or write. Preffer using ByteStream.h whenever possible.
-//  Reasoning: This code is shared between ByteStream and BitStream, so it needs to exist outside to prevent duplication
-//             but protocol implementor should use the ByteStream or BitStream and not these utils directly.
+// integer serialization and conversion
+// NOTE: The following functions perform no boundary checking, caller must ensure there is enough space in the buffer
+//       to do the read or write. Preffer using ByteStream.h whenever possible.
+// Reasoning: This code is shared between ByteStream and BitStream, so it needs to exist outside to prevent duplication
+//            but protocol implementor should use the ByteStream or BitStream and not these utils directly.
 
 //----------------------------------------------------------------------------------------------------------------------
-//  integers with statically known size
+// integers with statically known size
 
 /// Converts an arbitrary integral number from native format to little endian and writes it into the buffer.
 template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >

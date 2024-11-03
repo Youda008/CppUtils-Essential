@@ -23,7 +23,7 @@ namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  range-like helpers
+// range-like helpers
 
 template< typename ContType, typename ValType >
 typename ContType::iterator find( ContType & cont, const ValType & val )
@@ -87,7 +87,7 @@ void append( DstContType & dstCont, const SrcContType & srcCont )
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  misc
+// misc
 
 template< typename Elem, size_t size >
 std::array< Elem, size > to_std_array( const Elem (& cArray) [size] )

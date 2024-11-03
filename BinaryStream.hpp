@@ -547,7 +547,7 @@ class BinaryInputStream
 
 
 //======================================================================================================================
-//  misc utils
+// misc utils
 
 template< typename Type >
 std::vector< uint8_t > toByteVector( const Type & obj )
@@ -574,7 +574,7 @@ bool fromBytes( const_byte_span bytes, Type & obj )
 
 
 //======================================================================================================================
-//  this allows you to use operator << and >> for integers and enums without losing the choice between little/big endian
+// this allows you to use operator << and >> for integers and enums without losing the choice between little/big endian
 
 #define MAKE_LITTLE_ENDIAN_DEFAULT \
 namespace own {\

@@ -18,7 +18,7 @@
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  utils from standard library of a newer C++ standard
+// utils from standard library of a newer C++ standard
 
 namespace fut {
 

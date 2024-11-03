@@ -19,7 +19,7 @@ namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  strings and arrays
+// strings and arrays
 
 // We do this only to hide <cstring> from the user of BinaryStream and reduce include bloat.
 void BinaryOutputStream::_writeRaw( const uint8_t * ptr, size_t numBytes ) noexcept

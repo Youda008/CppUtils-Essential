@@ -21,7 +21,7 @@ namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  input parsing
+// input parsing
 
 #ifndef NO_EXCEPTIONS
 template< typename DestType >
@@ -42,7 +42,7 @@ std::string read_until( std::istream & is, char delim );
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  output utils
+// output utils
 
 /// Helper object that will output certain characted n times into a std::ostream.
 /** Intended usage: std::cout << repeat_char('a', 5) << std::endl; */

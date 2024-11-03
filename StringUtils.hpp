@@ -31,7 +31,7 @@ namespace own {
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  parsing
+// parsing
 
 template< typename DestType >
 std::string to_string( const DestType & dest )
@@ -64,7 +64,7 @@ DestType from_string( const std::string & src )
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//  other
+// other
 
 bool is_printable( const_char_span str ) noexcept;  // TODO: this produces ambiguous error
 inline bool is_printable( const_byte_span data ) noexcept { return is_printable( data.cast< const char >() ); }

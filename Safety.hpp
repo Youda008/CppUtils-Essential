@@ -9,15 +9,15 @@
 #define CPPUTILS_SAFETY_INCLUDED
 
 
-#ifdef DEBUG
-	#define SAFETY_CHECKS
-#endif
-
 enum class SafetyChecks
 {
 	Disabled,
 	Enabled
 };
+
+#ifdef DEBUG
+	#define SAFETY_CHECKS
+#endif
 
 #ifdef SAFETY_CHECKS
 	constexpr SafetyChecks defaultSafetyChecks = SafetyChecks::Enabled;
