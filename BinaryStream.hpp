@@ -38,6 +38,9 @@ class BinaryInputStreamBE;
 
 class BinaryOutputStream
 {
+
+ protected:
+
 	uint8_t * _begPos;  ///< position of the beginning of the buffer
 	uint8_t * _curPos;  ///< current position in the buffer
 	uint8_t * _endPos;  ///< position of the end of the buffer
@@ -245,6 +248,9 @@ class BinaryOutputStream
 
 class BinaryInputStream
 {
+
+ protected:
+
 	const uint8_t * _begPos;  ///< position of the beginning of the buffer
 	const uint8_t * _curPos;  ///< current position in the buffer
 	const uint8_t * _endPos;  ///< position of the end of the buffer

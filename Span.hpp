@@ -189,7 +189,6 @@ class fixed_span
 		s._begin = begin;
 		return s;
 	}
-
 };
 
 

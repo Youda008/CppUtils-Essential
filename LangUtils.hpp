@@ -155,7 +155,9 @@ template< typename EndFunc >
 class scope_guard
 {
 	EndFunc _atEnd;
+
  public:
+
 	scope_guard( const EndFunc & endFunc ) : _atEnd( endFunc ) {}
 	scope_guard( EndFunc && endFunc ) : _atEnd( move(endFunc) ) {}
 	~scope_guard() noexcept  { _atEnd(); }
