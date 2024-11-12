@@ -12,7 +12,7 @@
 #include "Essential.hpp"
 
 #include "TypeTraits.hpp"
-#include "CriticalError.hpp"
+#include "SafetyChecks.hpp"
 
 #include <iterator>  // advance, begin, end
 #include <memory>
@@ -302,8 +302,7 @@ class tribool
 	bool has_value() const  { return _val >= 0; }
 	bool value() const
 	{
-		if (!has_value())
-			critical_error("value() called when tribool is empty");
+		SAFETY_CHECK( has_value(), "value() called when tribool is empty" );
 		return static_cast<bool>(_val);
 	}
 

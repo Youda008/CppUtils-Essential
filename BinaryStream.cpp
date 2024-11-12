@@ -22,7 +22,7 @@ namespace own {
 
 [[noreturn]] void BinaryOutputStream::writeError( const char * typeDesc, size_t typeSize )
 {
-	critical_error(
+	CRITICAL_ERROR(
 		"Attempted to write %s of size %zu past the buffer end, remaining size: %zu", typeDesc, typeSize, remaining()
 	);
 }

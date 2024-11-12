@@ -15,7 +15,7 @@
 #include "Span.hpp"
 #include "Endianity.hpp"
 #include "MemAccessUtils.hpp"
-#include "Safety.hpp"
+#include "SafetyChecks.hpp"
 
 #include <string>
 #include <vector>  // toByteVector, fromByteVector
@@ -198,7 +198,7 @@ class BinaryOutputStream
 	template< typename Type >
 	inline size_t checkWrite()
 	{
-		const size_t numBytes = sizeof( Type );
+		constexpr size_t numBytes = sizeof( Type );
 	 #ifdef SAFETY_CHECKS
 		if (_curPos + numBytes > _endPos)
 		{
@@ -221,7 +221,7 @@ class BinaryOutputStream
 		return numBytes;
 	}
 
-	inline size_t checkWrite( const char * typeDesc, size_t numBytes )
+	inline size_t checkWrite( MAYBE_UNUSED const char * typeDesc, size_t numBytes )
 	{
 	 #ifdef SAFETY_CHECKS
 		if (_curPos + numBytes > _endPos)
