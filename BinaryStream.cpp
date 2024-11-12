@@ -7,126 +7,74 @@
 
 #include "BinaryStream.hpp"
 
+#include "LangUtils.hpp"  // unconst
+#include "CriticalError.hpp"
+
 #include <string>
-using std::string;
-#include <algorithm>  // find, copy
-using std::find;
-using std::copy;
-#include <cstring>  // memcpy
+#include <algorithm>  // find
 
 
 namespace own {
 
 
-//----------------------------------------------------------------------------------------------------------------------
-// strings and arrays
+//======================================================================================================================
+// error handling
 
-// We do this only to hide <cstring> from the user of BinaryStream and reduce include bloat.
-void BinaryOutputStream::_writeRaw( const uint8_t * ptr, size_t numBytes ) noexcept
+[[noreturn]] void BinaryOutputStream::writeError( const char * typeDesc, size_t typeSize )
 {
-	memcpy( _curPos, ptr, numBytes );
-}
-void BinaryInputStream::_readRaw( uint8_t * ptr, size_t numBytes ) noexcept
-{
-	memcpy( ptr, _curPos, numBytes );
+	critical_error(
+		"Attempted to write %s of size %zu past the buffer end, remaining size: %zu", typeDesc, typeSize, remaining()
+	);
 }
 
-void BinaryOutputStream::writeBytes( const_byte_span buffer )
+[[noreturn]] void BinaryOutputStream::writeArrayError( const char * elemDesc, size_t totalSize )
 {
-	checkWrite( buffer.size(), "bytes" );
-
-	memcpy( _curPos, buffer.data(), buffer.size() );
-	_curPos += buffer.size();
+	std::string typeDesc = std::string( elemDesc ) + " array";
+	writeError( typeDesc.c_str(), totalSize );
 }
 
-void BinaryOutputStream::writeChars( const_char_span buffer )
+
+//======================================================================================================================
+// more complex writing operations
+
+
+
+//======================================================================================================================
+// more complex reading operations
+
+bool BinaryInputStream::readString( std::string & str, size_t size ) noexcept
 {
-	checkWrite( buffer.size(), "chars" );
-
-	memcpy( _curPos, buffer.data(), buffer.size() );
-	_curPos += buffer.size();
-}
-
-void BinaryOutputStream::writeString( const string & str )
-{
-	checkWrite( str.size(), "string" );
-
-	memcpy( _curPos, reinterpret_cast< const uint8_t * >( str.data() ), str.size() );
-	_curPos += str.size();
-}
-
-void BinaryOutputStream::writeString0( const string & str )
-{
-	checkWrite( str.size() + 1, "string" );
-
-	memcpy( _curPos, reinterpret_cast< const uint8_t * >( str.data() ), str.size() + 1 );
-	_curPos += str.size() + 1;
-}
-
-void BinaryOutputStream::writeZeros( size_t numZeroBytes )
-{
-	checkWrite( numZeroBytes, "zeros" );
-
-	memset( _curPos, 0, numZeroBytes );
-	_curPos += numZeroBytes;
-}
-
-bool BinaryInputStream::readBytes( byte_span buffer ) noexcept
-{
-	if (!canRead( buffer.size() )) {
-		return false;
+	if (const size_t readSize = checkRead( size ))
+	{
+		str.resize( readSize );
+		copyBytes( _curPos, unconst( reinterpret_cast< const uint8_t * >( str.data() ) ), readSize );
+		_curPos += readSize;
 	}
-
-	memcpy( buffer.data(), _curPos, buffer.size() );
-	_curPos += buffer.size();
-	return true;
+	return !_failed;
 }
 
-bool BinaryInputStream::readChars( char_span buffer ) noexcept
-{
-	if (!canRead( buffer.size() )) {
-		return false;
-	}
-
-	memcpy( buffer.data(), _curPos, buffer.size() );
-	_curPos += buffer.size();
-	return true;
-}
-
-bool BinaryInputStream::readString( string & str, size_t size ) noexcept
-{
-	if (!canRead( size )) {
-		return false;
-	}
-
-	str.resize( size );
-	memcpy( const_cast< char * >( str.data() ), _curPos, size );
-	_curPos += size;
-	return true;
-}
-
-bool BinaryInputStream::readString0( string & str ) noexcept
+bool BinaryInputStream::readString0( std::string & str ) noexcept
 {
 	if (!_failed)
 	{
-		const uint8_t * strEndPos = find( _curPos, _endPos, '\0' );
-		if (strEndPos >= _endPos)
+		const uint8_t * strEndPos = std::find( _curPos, _endPos, '\0' );
+		if (strEndPos != _endPos)
 		{
-			_failed = true;
+			const size_t strSize = size_t( strEndPos - _curPos );
+			str.resize( strSize );
+			copyBytes( _curPos, unconst( reinterpret_cast< const uint8_t * >( str.data() ) ), strSize );
+			_curPos += strSize + 1;
 		}
 		else
 		{
-			const size_t size = size_t( strEndPos - _curPos );
-			str.resize( size );
-			memcpy( const_cast< char * >( str.data() ), _curPos, size );
-			_curPos += str.size() + 1;
+			_failed = true;
 		}
 	}
 	return !_failed;
 }
 
 
-//----------------------------------------------------------------------------------------------------------------------
+//======================================================================================================================
 
 
 } // namespace own

@@ -14,14 +14,21 @@
 #include "TypeTraits.hpp"  // is_int_or_enum
 #include "Span.hpp"
 #include "Endianity.hpp"
+#include "MemAccessUtils.hpp"
 #include "Safety.hpp"
-#include "CriticalError.hpp"
 
 #include <string>
 #include <vector>  // toByteVector, fromByteVector
+#include <typeinfo>
 
 
 namespace own {
+
+
+class BinaryOutputStreamLE;
+class BinaryOutputStreamBE;
+class BinaryInputStreamLE;
+class BinaryInputStreamBE;
 
 
 //======================================================================================================================
@@ -42,13 +49,6 @@ class BinaryOutputStream
 	BinaryOutputStream & operator=( const BinaryOutputStream & other ) = delete;
 	BinaryOutputStream & operator=( BinaryOutputStream && other ) = default;
 
-	void reset( byte_span buffer ) noexcept
-	{
-		_begPos = reinterpret_cast< uint8_t * >( buffer.data() );
-		_curPos = reinterpret_cast< uint8_t * >( buffer.data() );
-		_endPos = reinterpret_cast< uint8_t * >( buffer.data() + buffer.size() );
-	}
-
 	/// Initializes a binary output stream operating over any byte container with continuous memory.
 	/** WARNING: The class takes non-owning reference to a buffer. You are responsible for making sure the buffer exists
 	  * at least as long as this object and for allocating the storage big enough for all write operations to fit in. */
@@ -57,116 +57,118 @@ class BinaryOutputStream
 		reset( buffer );
 	}
 
+	void reset( byte_span buffer ) noexcept
+	{
+		_begPos = buffer.data();
+		_curPos = buffer.data();
+		_endPos = buffer.data() + buffer.size();
+	}
+
 	//-- atomic elements -----------------------------------------------------------------------------------------------
 
-	void put( uint8_t b )
+	/// Writes a single byte into the buffer.
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >  // same code for char, uint8_t, std::byte, ...
+	void put( Byte b )
 	{
-		checkWrite( 1, "byte" );
-
-		*_curPos = b;
+		checkWrite< Byte >();
+		*_curPos = uint8_t( b );
 		_curPos++;
 	}
 
-	void put( char c )
-	{
-		checkWrite( 1, "char" );
-
-		*_curPos = uint8_t(c);
-		_curPos++;
-	}
-
-	BinaryOutputStream & operator<<( uint8_t b )
-	{
-		put( b );
-		return *this;
-	}
-
-	BinaryOutputStream & operator<<( char c )
-	{
-		put( c );
-		return *this;
-	}
-
-	/// Writes raw bytes of an object as they are, without any byte conversion or deep serialization.
+	/// Writes bytes of an object as they are in memory, without any byte conversion or deep serialization.
 	template< typename Type >
 	void writeRaw( const Type & obj )
 	{
-		checkWrite( 1, "raw object" );
-
-		_writeRaw( reinterpret_cast< const uint8_t * >( &obj ), sizeof( obj ) );
-		_curPos += sizeof( obj );
-	}
-
-	/// Serializes an object via its operator<< and writes the result into the buffer.
-	template< typename Type >
-	void writeDeep( const Type & obj )
-	{
-		*this << obj;
+		const size_t writeSize = checkWrite< Type >();
+		copyBytes( reinterpret_cast< const uint8_t * >( &obj ), _curPos, writeSize );
+		_curPos += writeSize;
 	}
 
 	//-- integers ------------------------------------------------------------------------------------------------------
 
 	/// Converts an arbitrary integral number from native format to little endian and writes it into the buffer.
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >
-	void writeLittleEndian( Type native )
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	void writeLittleEndian( Int native )
 	{
-		checkWrite( sizeof(native), "int" );
-
+		const size_t writeSize = checkWrite< Int >();
 		own::writeLittleEndian( _curPos, native );
-		_curPos += sizeof(native);
-	}
-
-	/// Converts an arbitrary integral number from native format to big endian and writes it into the buffer.
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >
-	void writeBigEndian( Type native )
-	{
-		checkWrite( sizeof(native), "int" );
-
-		own::writeBigEndian( _curPos, native );
-		_curPos += sizeof(native);
-	}
-
-	//-- strings and arrays --------------------------------------------------------------------------------------------
-
-	/// Writes raw bytes of an arbitrary array as they are, without any byte conversion or deep serialization.
-	template< typename ContType, REQUIRES( is_trivial_range<ContType>::value ) >
-	void writeRawArray( const ContType & array )
-	{
-		using ElemType = typename own::range_element< ContType >::type;
-		const size_t writeSize = fut::size( array ) * sizeof( ElemType );
-
-		checkWrite( writeSize, "array" );
-
-		_writeRaw( fut::data( array ), writeSize );
 		_curPos += writeSize;
 	}
 
-	/// Writes specified number of bytes from a continuous memory storage to the buffer.
-	void writeBytes( const_byte_span buffer );
-
-	/// Writes specified number of chars from a continuous memory storage to the buffer.
-	void writeChars( const_char_span buffer );
-
-	/// Writes a string WITHOUT its null terminator to the buffer.
-	void writeString( const std::string & str );
-
-	/// Writes a string WITH its null terminator to the buffer.
-	void writeString0( const std::string & str );
-
-	BinaryOutputStream & operator<<( const_byte_span buffer )
+	/// Converts an arbitrary integral number from native format to big endian and writes it into the buffer.
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	void writeBigEndian( Int native )
 	{
-		writeBytes( buffer );
-		return *this;
+		const size_t writeSize = checkWrite< Int >();
+		own::writeBigEndian( _curPos, native );
+		_curPos += writeSize;
 	}
 
-	BinaryOutputStream & operator<<( const_char_span buffer )
+	inline BinaryOutputStreamLE & getLittleEndianStream();
+	inline BinaryOutputStreamBE & getBigEndianStream();
+
+	//-- arrays and strings --------------------------------------------------------------------------------------------
+
+	/// Writes specified number of bytes from a continuous memory storage to the buffer.
+	template< typename Range, REQUIRES( is_range_of_byte_alikes<Range>::value && has_contiguous_data<Range>::value ) >  // same code for char, uint8_t, std::byte, ...
+	void writeBytes( const Range & bytes )
 	{
-		writeChars( buffer );
-		return *this;
+		const size_t writeSize = checkWrite( "span of bytes", fut::size( bytes ) );
+		copyBytes( reinterpret_cast< const uint8_t * >( fut::data( bytes ) ), _curPos, writeSize );
+		_curPos += writeSize;
+	}
+
+	/// Writes bytes of an arbitrary array as they are in memory, without any byte conversion or deep serialization.
+	template< typename Range, REQUIRES( is_trivial_range<Range>::value && has_contiguous_data<Range>::value ) >
+	void writeTrivialArray( const Range & array )
+	{
+		using Element = typename range_element< Range >::type;
+		const size_t writeSize = checkWrite< Element >( fut::size( array ) );
+		copyBytes( reinterpret_cast< const uint8_t * >( fut::data( array ) ), _curPos, writeSize );
+		_curPos += writeSize;
+	}
+
+	/// Writes a string WITHOUT its null terminator to the buffer.
+	void writeString( const std::string & str )
+	{
+		const size_t writeSize = checkWrite( "string", str.size() );
+		copyBytes( reinterpret_cast< const uint8_t * >( str.data() ), _curPos, writeSize );
+		_curPos += writeSize;
+	}
+
+	/// Writes a string WITH its null terminator to the buffer.
+	void writeString0( const std::string & str )
+	{
+		const size_t writeSize = checkWrite( "string", str.size() + 1 );
+		copyBytes( reinterpret_cast< const uint8_t * >( str.data() ), _curPos, writeSize );
+		_curPos += writeSize;
 	}
 
 	/// Writes specified number of zero bytes to the buffer.
-	void writeZeros( size_t numZeroBytes );
+	void writeZeroBytes( size_t numZeroBytes )
+	{
+		const size_t writeSize = checkWrite( "zero bytes", numZeroBytes );
+		zeroBytes( _curPos, writeSize );
+		_curPos += writeSize;
+	}
+
+	//-- convenience operators -----------------------------------------------------------------------------------------
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >  // same code for char, uint8_t, std::byte, ...
+	BinaryOutputStream & operator<<( Byte b )
+	{
+		put( b );
+		return *this;
+	}
+
+	/// Accepts C array, std::array, std::vector, std::basic_string, own::span or any custom range-based container
+	/// whose elements are char, unsigned char, char8_t, uint8_t, std::byte, ...
+	template< typename Range, REQUIRES( is_range_of_byte_alikes<Range>::value && has_contiguous_data<Range>::value ) >
+	BinaryOutputStream & operator<<( const Range & bytes )
+	{
+		writeBytes( bytes );
+		return *this;
+	}
 
 	//-- position manipulation -----------------------------------------------------------------------------------------
 
@@ -183,26 +185,53 @@ class BinaryOutputStream
 	}
 
 	/// Returns true when the position in the stream reaches the end.
-	bool atEnd() const
+	bool isAtEnd() const noexcept
 	{
 		return _curPos >= _endPos;
 	}
 
  private:
 
-	void checkWrite( MAYBE_UNUSED size_t size, MAYBE_UNUSED const char * type )
+	template< typename Type >
+	inline size_t checkWrite()
 	{
+		const size_t numBytes = sizeof( Type );
 	 #ifdef SAFETY_CHECKS
-		if (_curPos + size > _endPos)
+		if (_curPos + numBytes > _endPos)
 		{
-			critical_error(
-				"Attempted to write %s of size %zu past the buffer end, remaining size: %zu", type, size, remaining()
-			);
+			writeError( typeid( Type ).name(), numBytes );
 		}
 	 #endif
+		return numBytes;
 	}
 
-	void _writeRaw( const uint8_t * ptr, size_t numBytes ) noexcept;
+	template< typename Element >
+	inline size_t checkWrite( size_t elemCount )
+	{
+		const size_t numBytes = elemCount * sizeof( Element );
+	 #ifdef SAFETY_CHECKS
+		if (_curPos + numBytes > _endPos)
+		{
+			writeArrayError( typeid( Element ).name(), numBytes );
+		}
+	 #endif
+		return numBytes;
+	}
+
+	inline size_t checkWrite( const char * typeDesc, size_t numBytes )
+	{
+	 #ifdef SAFETY_CHECKS
+		if (_curPos + numBytes > _endPos)
+		{
+			writeError( typeDesc, numBytes );
+		}
+	 #endif
+		return numBytes;
+	}
+
+	[[noreturn]] void writeError( const char * typeDesc, size_t typeSize );
+
+	[[noreturn]] void writeArrayError( const char * elemDesc, size_t totalSize );
 
 };
 
@@ -212,7 +241,7 @@ class BinaryOutputStream
 /** This is a binary alternative of std::istringstream. First you allocate a buffer, then you construct this stream
   * object, and then you read the data you expect using operator>> or named methods.
   * If an attempt to read past the end of the input buffer is made, the stream sets its internal error flag
-  * and returns default values for any further read operations. The error flag can be checked with Failed(). */
+  * and returns default values for any further read operations. The error flag can be checked with failed(). */
 
 class BinaryInputStream
 {
@@ -228,14 +257,6 @@ class BinaryInputStream
 	BinaryInputStream & operator=( const BinaryInputStream & other ) = delete;
 	BinaryInputStream & operator=( BinaryInputStream && other ) = default;
 
-	void reset( const_byte_span buffer ) noexcept
-	{
-		_begPos = reinterpret_cast< const uint8_t * >( buffer.data() );
-		_curPos = reinterpret_cast< const uint8_t * >( buffer.data() );
-		_endPos = reinterpret_cast< const uint8_t * >( buffer.data() + buffer.size() );
-		_failed = false;
-	}
-
 	/// Initializes a binary input stream operating over any byte container with continuous memory.
 	/** WARNING: The class takes non-owning reference to a buffer.
 	  * You are responsible for making sure the buffer exists at least as long as this object. */
@@ -244,193 +265,200 @@ class BinaryInputStream
 		reset( buffer );
 	}
 
+	void reset( const_byte_span buffer ) noexcept
+	{
+		_begPos = buffer.data();
+		_curPos = buffer.data();
+		_endPos = buffer.data() + buffer.size();
+		_failed = false;
+	}
+
 	//-- atomic elements -----------------------------------------------------------------------------------------------
 
-	uint8_t get() noexcept
+	/// Reads a single byte from the buffer.
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >  // same code for char, uint8_t, std::byte, ...
+	Byte get() noexcept
 	{
-		if (canRead( 1 )) {
-			return *(_curPos++);
-		} else {
-			return 0;
-		}
+		if (checkRead< Byte >())
+			return Byte( *(_curPos++) );
+		else
+			return Byte( 0 );
 	}
 
+	uint8_t getByte() noexcept
+	{
+		return get< uint8_t >();
+	}
 	char getChar() noexcept
 	{
-		return char( get() );
+		return get< char >();
 	}
 
-	BinaryInputStream & operator>>( uint8_t & b ) noexcept
-	{
-		b = get();
-		return *this;
-	}
-
-	BinaryInputStream & operator>>( char & c ) noexcept
-	{
-		c = getChar();
-		return *this;
-	}
-
-	/// Reads raw bytes of an object as they are, without any byte conversion or deep deserialization.
+	/// Reads bytes of an object as they are in memory, without any byte conversion or deep deserialization.
 	/** (output parameter variant) */
 	template< typename Type >
-	bool readRaw( Type & obj )
+	bool readRaw( Type & obj ) noexcept
 	{
-		if (!canRead( sizeof( obj ) )) {
-			return false;
+		if (const size_t readSize = checkRead< Type >())
+		{
+			copyBytes( _curPos, reinterpret_cast< uint8_t * >( &obj ), readSize );
+			_curPos += readSize;
 		}
-
-		_readRaw( reinterpret_cast< uint8_t * >( &obj ), sizeof( obj ) );
-		_curPos += sizeof( obj );
-		return true;
+		return !_failed;
 	}
 
-	/// Reads raw bytes of an object as they are, without any byte conversion or deep deserialization.
+	/// Reads bytes of an object as they are, without any byte conversion or deep deserialization.
 	/** (return value variant) */
 	template< typename Type >
-	Type readRaw()
+	Type readRaw() noexcept
 	{
 		Type obj;
 		readRaw( obj );
 		return obj;
 	}
 
-	/// Deserializes an object via its operator>> and returns the result.
+	//-- integers ------------------------------------------------------------------------------------------------------
+
+	/// Reads an arbitrary integral number from the buffer and converts it from big endian to native format.
 	/** (output parameter variant) */
-	template< typename Type >
-	bool readDeep( Type & obj )
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	bool readLittleEndian( Int & native ) noexcept
 	{
-		*this >> obj;
+		if (const size_t readSize = checkRead< Int >())
+		{
+			native = own::readLittleEndian< Int >( _curPos );
+			_curPos += readSize;
+		}
 		return !_failed;
 	}
 
-	/// Deserializes an object via its operator>> and returns the result.
-	/** (return value variant) */
-	template< typename Type >
-	Type readDeep()
-	{
-		Type obj;
-		*this >> obj;
-		return obj;
-	}
-
-	//-- integers ------------------------------------------------------------------------------------------------------
-
 	/// Reads an arbitrary integral number from the buffer and converts it from little endian to native format.
 	/** (return value variant) */
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >
-	Type readLittleEndian() noexcept
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	Int readLittleEndian() noexcept
 	{
-		if (!canRead( sizeof(Type) )) {
-			return Type(0);
+		auto native = Int(0);
+		if (const size_t readSize = checkRead< Int >())
+		{
+			native = own::readLittleEndian< Int >( _curPos );
+			_curPos += readSize;
 		}
-
-		Type native = own::readLittleEndian< Type >( _curPos );
-		_curPos += sizeof(Type);
 		return native;
 	}
 
 	/// Reads an arbitrary integral number from the buffer and converts it from big endian to native format.
 	/** (output parameter variant) */
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >
-	bool readLittleEndian( Type & native ) noexcept
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	bool readBigEndian( Int & native ) noexcept
 	{
-		if (!canRead( sizeof(Type) )) {
-			return false;
+		if (const size_t readSize = checkRead< Int >())
+		{
+			native = own::readBigEndian< Int >( _curPos );
+			_curPos += readSize;
 		}
-
-		native = own::readLittleEndian< Type >( _curPos );
-		_curPos += sizeof(Type);
-		return true;
+		return !_failed;
 	}
 
 	/// Reads an arbitrary integral number from the buffer and converts it from big endian to native format.
 	/** (return value variant) */
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >
-	Type readBigEndian() noexcept
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	Int readBigEndian() noexcept
 	{
-		if (!canRead( sizeof(Type) )) {
-			return Type(0);
+		auto native = Int(0);
+		if (const size_t readSize = checkRead< Int >())
+		{
+			native = own::readBigEndian< Int >( _curPos );
+			_curPos += readSize;
 		}
-
-		Type native = own::readBigEndian< Type >( _curPos );
-		_curPos += sizeof(Type);
 		return native;
 	}
 
-	/// Reads an arbitrary integral number from the buffer and converts it from big endian to native format.
-	/** (output parameter variant) */
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) >
-	bool readBigEndian( Type & native ) noexcept
+	inline BinaryInputStreamLE & getLittleEndianStream();
+	inline BinaryInputStreamBE & getBigEndianStream();
+
+	//-- arrays and strings --------------------------------------------------------------------------------------------
+
+	// We must have overload for both generic container and span,
+	// because temporary rvalue of span will not fit into the non-const range reference
+	// and because containers won't convert to the templated span implicitly.
+
+	/// Reads a range of bytes from the buffer into a given pre-allocated container.
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	bool readBytes( span< Byte > bytes ) noexcept
 	{
-		if (!canRead( sizeof(Type) )) {
-			return false;
+		if (const size_t readSize = checkRead( bytes.size() ))
+		{
+			copyBytes( _curPos, reinterpret_cast< uint8_t * >( bytes.data() ), readSize );
+			_curPos += readSize;
 		}
-
-		native = own::readBigEndian< Type >( _curPos );
-		_curPos += sizeof(Type);
-		return true;
+		return !_failed;
 	}
 
-	//-- strings and arrays --------------------------------------------------------------------------------------------
-
-	// We must have overload for both generic container and span, because temporary rvalue of span will not
-	// fit into the non-const container reference.
-
-	/// Reads raw bytes of an arbitrary array as they are, without any byte conversion or deep deserialization.
-	template< typename ElemType, REQUIRES( std::is_trivial<ElemType>::value ) >
-	bool readRawArray( span< ElemType > array ) noexcept
+	/// Reads a range of bytes from the buffer into a given pre-allocated container.
+	template< typename Cont, REQUIRES( is_range_of_byte_alikes<Cont>::value && has_contiguous_data<Cont>::value ) >
+	bool readBytes( Cont & cont ) noexcept
 	{
-		const size_t readSize = array.size() * sizeof(ElemType);
+		return readBytes( make_span( cont ) );
+	}
 
-		if (!canRead( readSize )) {
-			return false;
+	/// Reads bytes of an arbitrary array as they are in memory, without any byte conversion or deep deserialization.
+	template< typename Element, REQUIRES( std::is_trivial<Element>::value ) >
+	bool readTrivialArray( span< Element > array ) noexcept
+	{
+		if (const size_t readSize = checkRead< Element >( array.size() ))
+		{
+			copyBytes( _curPos, reinterpret_cast< uint8_t * >( array.data() ), readSize );
+			_curPos += readSize;
 		}
-
-		_readRaw( array.data(), readSize );
-		_curPos += readSize;
-		return true;
+		return !_failed;
 	}
 
-	/// \copydoc readRawArray( span< ElemType > )
-	// This overload is needed because the above function is a template and containers won't convert to span implicitly.
-	template< typename ContType, REQUIRES( is_trivial_range<ContType>::value ) >
-	bool readRawArray( ContType & array ) noexcept
+	/// Reads bytes of an arbitrary array as they are in memory, without any byte conversion or deep deserialization.
+	template< typename Cont, REQUIRES( is_trivial_range<Cont>::value && has_contiguous_data<Cont>::value ) >
+	bool readTrivialArray( Cont & cont ) noexcept
 	{
-		return readRawArray( make_span( array ) );
+		return readTrivialArray( make_span( cont ) );
 	}
 
-	/// Reads raw bytes of an arbitrary array into a resizable container.
+	/// Reads bytes of an arbitrary array as they are in memory into a resizable container.
 	/** The container is automatically resized before copying the data into it. */
-	template< typename ContType, REQUIRES( is_trivial_range<ContType>::value ) >
-	bool readResizableRawArray( ContType & cont, size_t size ) noexcept
+	template< typename Cont,
+		REQUIRES( is_trivial_range<Cont>::value && has_contiguous_data<Cont>::value && is_resizable<Cont>::value ) >
+	bool readResizableTrivialArray( Cont & cont, size_t size ) noexcept
 	{
-		using ElemType = typename range_value<ContType>::type;
-		const size_t readSize = size * sizeof(ElemType);
-
-		if (!canRead( readSize )) {
-			return false;
+		using Element = typename range_value< Cont >::type;
+		if (const size_t readSize = checkRead< Element >( size ))
+		{
+			cont.resize( size );
+			copyBytes( _curPos, reinterpret_cast< uint8_t * >( cont.data() ), readSize );
+			_curPos += readSize;
 		}
-
-		cont.resize( readSize );
-		_readRaw( cont.data(), readSize );
-		_curPos += readSize;
-		return true;
+		return !_failed;
 	}
 
-	/// Reads a span of bytes from the buffer into a given container.
-	bool readBytes( byte_span buffer ) noexcept;
-
-	/// Reads a span of bytes from the buffer into a given container.
-	bool readChars( char_span buffer ) noexcept;
-
-	/// Reads a span of bytes from the buffer into a resizable container.
+	/// Reads a range of bytes from the buffer into a resizable container.
 	/** The container is automatically resized before copying the bytes into it. */
-	template< typename ContType, REQUIRES( is_byte_range<ContType>::value ) >
-	bool readResizableBytes( ContType & cont, size_t size ) noexcept
+	template< typename Cont,
+		REQUIRES( is_range_of_byte_alikes<Cont>::value && has_contiguous_data<Cont>::value && is_resizable<Cont>::value ) >
+	bool readResizableByteArray( Cont & cont, size_t size ) noexcept
 	{
-		return readResizableRawArray( cont, size );
+		return readResizableTrivialArray( cont, size );
+	}
+
+	/// Reads the remaining data from the current position until the end of the buffer to a resizable container.
+	/** The container is automatically resized before copying the bytes into it. */
+	template< typename Cont,
+		REQUIRES( is_range_of_byte_alikes<Cont>::value && has_contiguous_data<Cont>::value && is_resizable<Cont>::value ) >
+	bool readRemaining( Cont & cont ) noexcept
+	{
+		if (!_failed)
+		{
+			const size_t readSize = remaining();
+			cont.resize( readSize );
+			copyBytes( _curPos, reinterpret_cast< uint8_t * >( cont.data() ), readSize );
+			_curPos += readSize;
+		}
+		return !_failed;
 	}
 
 	/// Reads a string of specified size from the buffer.
@@ -459,24 +487,30 @@ class BinaryInputStream
 		return str;
 	}
 
-	BinaryInputStream & operator>>( byte_span buffer ) noexcept
+	//-- convenience operators -----------------------------------------------------------------------------------------
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >  // same code for char, uint8_t, std::byte, ...
+	BinaryInputStream & operator>>( Byte & b ) noexcept
 	{
-		readBytes( buffer );
+		b = get< Byte >();
 		return *this;
 	}
 
-	BinaryInputStream & operator>>( char_span buffer ) noexcept
+	/// Accepts span of char, unsigned char, char8_t, uint8_t, std::byte, ...
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryInputStream & operator>>( span< Byte > bytes ) noexcept
 	{
-		readChars( buffer );
+		readBytes( bytes );
 		return *this;
 	}
 
-	/// Reads the remaining data from the current position until the end of the buffer to a resizable container.
-	/** The container is automatically resized before copying the bytes into it. */
-	template< typename ContType, REQUIRES( is_byte_range<ContType>::value ) >
-	bool readRemaining( ContType & cont ) noexcept
+	/// Accepts C array, std::array or any custom range-based non-resizable container
+	/// whose elements are char, unsigned char, char8_t, uint8_t, std::byte, ...
+	template< typename Cont,
+		REQUIRES( is_range_of_byte_alikes<Cont>::value && has_contiguous_data<Cont>::value && !is_resizable<Cont>::value ) >
+	BinaryInputStream & operator>>( Cont & cont )
 	{
-		return readResizableBytes( cont, remaining() );
+		return *this >> make_span( cont );
 	}
 
 	//-- position manipulation -----------------------------------------------------------------------------------------
@@ -494,7 +528,7 @@ class BinaryInputStream
 	}
 
 	/// Returns true when the position in the stream reaches the end.
-	bool atEnd() const
+	bool isAtEnd() const
 	{
 		return _curPos >= _endPos;
 	}
@@ -502,22 +536,20 @@ class BinaryInputStream
 	/// Moves over specified number of bytes without returning them to the user.
 	bool skip( size_t numBytes ) noexcept
 	{
-		if (!canRead( numBytes )) {
-			return false;
+		if (const size_t readSize = checkRead( numBytes ))
+		{
+			_curPos += numBytes;
 		}
-
-		_curPos += numBytes;
-		return true;
+		return !_failed;
 	}
 
 	void rewind( size_t numBytes ) noexcept
 	{
-		if (_curPos - numBytes < _begPos) {
-			_failed = true;
-			return;
+		_failed = _begPos + numBytes > _curPos;
+		if (!_failed)
+		{
+			_curPos -= numBytes;
 		}
-		_curPos -= numBytes;
-		_failed = false;
 	}
 
 	void rewindToBeginning() noexcept
@@ -528,28 +560,217 @@ class BinaryInputStream
 
 	//-- error handling ------------------------------------------------------------------------------------------------
 
-	void setFailed() noexcept { _failed = true; }
-	void resetFailed() noexcept { _failed = false; }
-	bool failed() const noexcept { return _failed; }
+	bool failed() const noexcept  { return _failed; }
+	void setFailed() noexcept     { _failed = true; }
+	void resetFailed() noexcept   { _failed = false; }
 
  private:
 
-	bool canRead( size_t size ) noexcept
+	template< typename Type >
+	inline size_t checkRead() noexcept
 	{
-		// the _failed flag can be true already from the previous call, in that case it will stay failed
-		_failed |= _curPos + size > _endPos;
-		return !_failed;
+		return checkRead( sizeof( Type ) );
 	}
 
-	void _readRaw( uint8_t * ptr, size_t numBytes ) noexcept;
+	template< typename Element >
+	inline size_t checkRead( size_t elemCount ) noexcept
+	{
+		return checkRead( elemCount * sizeof( Element ) );
+	}
+
+	// returns readSize, or 0 if we can't read that much
+	inline size_t checkRead( size_t readSize ) noexcept
+	{
+		// the _failed flag can be true already from the previous call, in that case it will stay failed
+		_failed |= _curPos + readSize > _endPos;
+		return size_t( !_failed ) * readSize;
+	}
 
 };
 
 
 //======================================================================================================================
+// endianity convenience helpers
+
+class BinaryOutputStreamLE : public BinaryOutputStream
+{
+ public:
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	void writeInt( Int native )
+	{
+		writeLittleEndian( native );
+	}
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value && sizeof(Int) != 1 ) >
+	BinaryOutputStreamLE & operator<<( Int native )
+	{
+		writeLittleEndian( native );
+		return *this;
+	}
+
+	// overrides with different return value
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryOutputStreamLE & operator<<( Byte b )
+	{
+		return static_cast< BinaryOutputStreamLE & >( BinaryOutputStream::operator<<( b ) );
+	}
+
+	template< typename Range, REQUIRES( is_range_of_byte_alikes<Range>::value && has_contiguous_data<Range>::value ) >
+	BinaryOutputStreamLE & operator<<( const Range & bytes )
+	{
+		return static_cast< BinaryOutputStreamLE & >( BinaryOutputStream::operator<<( bytes ) );
+	}
+};
+
+BinaryOutputStreamLE & BinaryOutputStream::getLittleEndianStream()
+{
+	return static_cast< BinaryOutputStreamLE & >( *this );
+}
+
+class BinaryOutputStreamBE : public BinaryOutputStream
+{
+ public:
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	void writeInt( Int native )
+	{
+		writeBigEndian( native );
+	}
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value && sizeof(Int) != 1 ) >
+	BinaryOutputStreamBE & operator<<( Int native )
+	{
+		writeBigEndian( native );
+		return *this;
+	}
+
+	// overrides with different return value
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryOutputStreamBE & operator<<( Byte b )
+	{
+		return static_cast< BinaryOutputStreamBE & >( BinaryOutputStream::operator<<( b ) );
+	}
+
+	template< typename Range, REQUIRES( is_range_of_byte_alikes<Range>::value && has_contiguous_data<Range>::value ) >
+	BinaryOutputStreamBE & operator<<( const Range & bytes )
+	{
+		return static_cast< BinaryOutputStreamBE & >( BinaryOutputStream::operator<<( bytes ) );
+	}
+};
+
+BinaryOutputStreamBE & BinaryOutputStream::getBigEndianStream()
+{
+	return static_cast< BinaryOutputStreamBE & >( *this );
+}
+
+class BinaryInputStreamLE : public BinaryInputStream
+{
+ public:
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	bool readInt( Int & native ) noexcept
+	{
+		return readLittleEndian( native );
+	}
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	Int readInt() noexcept
+	{
+		return readLittleEndian< Int >();
+	}
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value && sizeof(Int) != 1 ) >
+	BinaryInputStream & operator>>( Int & native )
+	{
+		readLittleEndian( native );
+		return *this;
+	}
+
+	// overrides with different return value
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryInputStreamLE & operator>>( Byte & b ) noexcept
+	{
+		return static_cast< BinaryInputStreamLE & >( BinaryInputStream::operator>>( b ) );
+	}
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryInputStreamLE & operator>>( span< Byte > bytes ) noexcept
+	{
+		return static_cast< BinaryInputStreamLE & >( BinaryInputStream::operator>>( bytes ) );
+	}
+
+	template< typename Cont,
+		REQUIRES( is_range_of_byte_alikes<Cont>::value && has_contiguous_data<Cont>::value && !is_resizable<Cont>::value ) >
+	BinaryInputStreamLE & operator>>( Cont & cont )
+	{
+		return static_cast< BinaryInputStreamLE & >( BinaryInputStream::operator>>( cont ) );
+	}
+};
+
+BinaryInputStreamLE & BinaryInputStream::getLittleEndianStream()
+{
+	return static_cast< BinaryInputStreamLE & >( *this );
+}
+
+class BinaryInputStreamBE : public BinaryInputStream
+{
+ public:
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	bool readInt( Int & native ) noexcept
+	{
+		return readBigEndian( native );
+	}
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value ) >
+	Int readInt() noexcept
+	{
+		return readBigEndian< Int >();
+	}
+
+	template< typename Int, REQUIRES( is_int_or_enum<Int>::value && sizeof(Int) != 1 ) >
+	BinaryInputStreamBE & operator>>( Int & native )
+	{
+		readBigEndian( native );
+		return *this;
+	}
+
+	// overrides with different return value
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryInputStreamBE & operator>>( Byte & b ) noexcept
+	{
+		return static_cast< BinaryInputStreamBE & >( BinaryInputStream::operator>>( b ) );
+	}
+
+	template< typename Byte, REQUIRES( is_byte_alike<Byte>::value ) >
+	BinaryInputStreamBE & operator>>( span< Byte > bytes ) noexcept
+	{
+		return static_cast< BinaryInputStreamBE & >( BinaryInputStream::operator>>( bytes ) );
+	}
+
+	template< typename Cont,
+		REQUIRES( is_range_of_byte_alikes<Cont>::value && has_contiguous_data<Cont>::value && !is_resizable<Cont>::value ) >
+	BinaryInputStreamBE & operator>>( Cont & cont )
+	{
+		return static_cast< BinaryInputStreamBE & >( BinaryInputStream::operator>>( cont ) );
+	}
+};
+
+BinaryInputStreamBE & BinaryInputStream::getBigEndianStream()
+{
+	return static_cast< BinaryInputStreamBE & >( *this );
+}
+
+
+//======================================================================================================================
 // misc utils
 
-template< typename Type >
+template< typename Type, Endianity endianity >
 std::vector< uint8_t > toByteVector( const Type & obj )
 {
 	std::vector< uint8_t > bytes( obj.size() );
@@ -558,7 +779,7 @@ std::vector< uint8_t > toByteVector( const Type & obj )
 	return bytes;
 }
 
-template< typename Type >
+template< typename Type, Endianity endianity >
 bool fromBytes( const_byte_span bytes, Type & obj )
 {
 	BinaryInputStream stream( bytes );
@@ -571,49 +792,6 @@ bool fromBytes( const_byte_span bytes, Type & obj )
 
 
 } // namespace own
-
-
-//======================================================================================================================
-// this allows you to use operator << and >> for integers and enums without losing the choice between little/big endian
-
-#define MAKE_LITTLE_ENDIAN_DEFAULT \
-namespace own {\
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) > \
-	inline own::BinaryOutputStream & operator<<( own::BinaryOutputStream & stream, Type val ) \
-	{\
-		stream.writeLittleEndian( val ); \
-		return stream; \
-	}\
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) > \
-	inline own::BinaryInputStream & operator>>( own::BinaryInputStream & stream, Type & val ) \
-	{\
-		stream.readLittleEndian( val ); \
-		return stream; \
-	}\
-}\
-using own::operator<<;\
-using own::operator>>;
-
-#define MAKE_BIG_ENDIAN_DEFAULT \
-namespace own {\
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) > \
-	inline own::BinaryOutputStream & operator<<( own::BinaryOutputStream & stream, Type val ) \
-	{\
-		stream.writeBigEndian( val ); \
-		return stream; \
-	}\
-	template< typename Type, REQUIRES( is_int_or_enum<Type>::value && sizeof(Type) != 1 ) > \
-	inline own::BinaryInputStream & operator>>( own::BinaryInputStream & stream, Type & val ) \
-	{\
-		stream.readBigEndian( val ); \
-		return stream; \
-	}\
-}\
-using own::operator<<;\
-using own::operator>>;
-
-
-//======================================================================================================================
 
 
 #endif // CPPUTILS_BINARY_STREAM_INCLUDED

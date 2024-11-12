@@ -66,8 +66,8 @@ DestType from_string( const std::string & src )
 //----------------------------------------------------------------------------------------------------------------------
 // other
 
-bool is_printable( const_char_span str ) noexcept;  // TODO: this produces ambiguous error
-inline bool is_printable( const_byte_span data ) noexcept { return is_printable( data.cast< const char >() ); }
+bool is_printable( const_char_span str ) noexcept;
+inline bool is_printable( const_byte_span data ) noexcept { return is_printable( data.interpret_as< const char >() ); }
 
 std::string to_lower( const std::string & str ) noexcept;
 void to_lower_in_place( std::string & str ) noexcept;
